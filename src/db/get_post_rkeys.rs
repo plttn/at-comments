@@ -1,4 +1,4 @@
-use self::models::*;
+use crate::models::*;
 use at_comments::*;
 use diesel::prelude::*;
 
@@ -15,6 +15,6 @@ fn main() {
     println!("Displaying {} posts", results.len());
     for post in results {
         println!("{:?}", post.slug);
-        println!("{:?}", post.post_did);
+        println!("{:?}", post.rkey);
     }
 }

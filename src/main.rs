@@ -1,6 +1,10 @@
 #[macro_use]
 extern crate rocket;
 
+pub mod models;
+pub mod schema;
+mod db;
+
 #[get("/")]
 fn index() -> &'static str {
     "Hello, world!"
@@ -8,7 +12,9 @@ fn index() -> &'static str {
 
 #[get("/slug/<id>")]
 fn get_post(id: &str) -> String {
-    format!("Post ID: {}", id)
+
+    let rkey = crate::db::get_post_rkey(id);
+    format!("bsky rkey: {}", rkey)
 }
 
 #[launch]

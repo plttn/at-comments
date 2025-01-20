@@ -7,12 +7,12 @@ use crate::schema::posts;
 pub struct Post {
     pub id: i32,
     pub slug: String,
-    pub post_did: String,
+    pub rkey: String,
 }
 
 #[derive(Insertable)]
 #[diesel(table_name = posts)]
 pub struct NewPost<'a> {
     pub slug: &'a str,
-    pub post_did: &'a str,
+    pub rkey: &'a str,
 }

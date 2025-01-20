@@ -4,6 +4,6 @@ diesel::table! {
     posts (id) {
         id -> Int4,
         slug -> Text,
-        post_did -> Text,
+        rkey -> Text,
     }
 }

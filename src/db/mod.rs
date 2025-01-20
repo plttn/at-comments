@@ -1,10 +1,8 @@
-pub mod models;
-pub mod schema;
 
 use diesel::prelude::*;
 use dotenvy::dotenv;
 use std::env;
-use self::models::{Post, NewPost};
+use super::models::{Post, NewPost};
 
 pub fn establish_connection() -> PgConnection {
     dotenv().ok();
@@ -14,12 +12,12 @@ pub fn establish_connection() -> PgConnection {
 }
 
 
-pub fn create_post<'a>(conn: &mut PgConnection, slug: &'a str, post_did: &'a str) -> Post {
+pub fn create_post<'a>(conn: &mut PgConnection, slug: &'a str, rkey: &'a str) -> Post {
     use crate::schema::posts;
 
     let new_post = NewPost {
         slug,
-        post_did,
+        rkey,
     };
 
     diesel::insert_into(posts::table)
@@ -27,4 +25,17 @@ pub fn create_post<'a>(conn: &mut PgConnection, slug: &'a str, post_did: &'a str
         .returning(Post::as_returning())
         .get_result(conn)
         .expect("Error saving new post")
+}
+
+pub fn get_post_rkey(post_slug: &str) -> String {
+    use super::schema::posts::dsl::*;
+
+    let connection = &mut establish_connection();
+    let post = posts
+        .filter(slug.eq(post_slug))
+        .select(rkey)
+        .first(connection)
+        .expect("Error loading post");
+
+    post
 }
