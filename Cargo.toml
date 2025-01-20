@@ -1,0 +1,9 @@
+[package]
+name = "at-comments"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rocket = {version = "0.5.1", features = ["json"]}
+diesel = { version = "2.2.0", features = ["postgres"] }
+dotenvy = "0.15"
