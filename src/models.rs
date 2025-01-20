@@ -1,6 +1,6 @@
+use crate::schema::posts;
 use diesel::prelude::*;
 use rocket::serde::Serialize;
-use crate::schema::posts;
 
 #[derive(Queryable, Selectable, Serialize)]
 #[serde(crate = "rocket::serde")]
