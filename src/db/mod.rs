@@ -10,17 +10,24 @@ pub fn establish_connection() -> PgConnection {
     PgConnection::establish(&database_url).expect(&format!("Error connecting to {}", database_url))
 }
 
-pub fn insert_post_rkey<'a>(slug: &'a str, rkey: &'a str, time_us: &'a str) -> Result<Post, diesel::result::Error> {
+pub fn insert_post_rkey<'a>(
+    slug: &'a str,
+    rkey: &'a str,
+    time_us: &'a str,
+) -> Result<Post, diesel::result::Error> {
     use crate::schema::posts;
 
-    let new_post = NewPost { slug, rkey, time_us };
+    let new_post = NewPost {
+        slug,
+        rkey,
+        time_us,
+    };
 
     let connection = &mut establish_connection();
 
-
     diesel::insert_into(posts::table)
         .values(&new_post)
-        .on_conflict(posts::slug)
+        .on_conflict(posts::slug) // if the slug already exists, do nothing
         .do_nothing()
         .returning(Post::as_returning())
         .get_result(connection)
@@ -38,14 +45,12 @@ pub fn get_post_rkey(post_slug: &str) -> Result<String, diesel::result::Error> {
     post
 }
 
+// get the latest time_us from the database for startup to backfill any missed posts
 pub fn get_latest_time_us() -> Result<String, diesel::result::Error> {
     use super::schema::posts::dsl::*;
 
     let connection = &mut establish_connection();
-    let time_stamp = posts
-        .order(id.desc())
-        .select(time_us)
-        .first(connection);
+    let time_stamp = posts.order(id.desc()).select(time_us).first(connection);
 
     time_stamp
 }
