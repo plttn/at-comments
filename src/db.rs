@@ -38,7 +38,7 @@ pub fn post_meta(post_slug: &str) -> Result<Post, diesel::result::Error> {
 
     let connection = &mut establish_connection();
     let post = posts.filter(slug.eq(post_slug)).first(connection);
-
+    println!("{:?}", post);
     post
 }
 

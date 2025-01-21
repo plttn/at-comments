@@ -2,7 +2,7 @@ use crate::schema::posts;
 use diesel::prelude::*;
 use rocket::serde::Serialize;
 
-#[derive(Queryable, Selectable, Serialize)]
+#[derive(Queryable, Selectable, Serialize, Debug)]
 #[serde(crate = "rocket::serde")]
 #[diesel(table_name = crate::schema::posts)]
 #[diesel(check_for_backend(diesel::pg::Pg))]
