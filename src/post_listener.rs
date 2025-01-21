@@ -41,7 +41,7 @@ pub async fn subscribe_posts() {
                 CommitEvent::Create { info, commit } => {
                     if let AppBskyFeedPost(record) = commit.record {
                         // check and see if this post is what we're looking for
-
+                        print!("Checking record: {}", record.text);
                         if record.text.starts_with(target_emoji.as_str()) {
                             let facets = record.facets.clone().unwrap();
                             for facet in facets {
