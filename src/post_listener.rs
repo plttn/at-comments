@@ -38,7 +38,6 @@ pub async fn subscribe_posts() {
             return;
         }
     };
-    
 
     let (receiver, _) = match jetstream.connect().await {
         Ok(connection) => connection,
@@ -77,7 +76,14 @@ pub async fn subscribe_posts() {
 
                                             // insert into db
                                             // should probably insert cursor too
-                                            let _ = insert_post_rkey(slug, &rkey, time_us);
+                                            match insert_post_rkey(slug, &rkey, time_us) {
+                                                Ok(_) => {
+                                                    println!("Inserted post");
+                                                }
+                                                Err(e) => {
+                                                    eprintln!("Failed to insert post: {}", e);
+                                                }
+                                            };
                                         }
                                         _ => {} // ick
                                     }
