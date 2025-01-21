@@ -33,16 +33,22 @@ pub async fn subscribe_posts() {
 
     let jetstream = JetstreamConnector::new(config).unwrap();
 
-    let (receiver, _) = jetstream.connect().await.unwrap();
+    let (receiver, _) = match jetstream.connect().await {
+        Ok(connection) => connection,
+        Err(e) => {
+            eprintln!("Failed to connect to Jetstream: {}", e);
+            return;
+        }
+    };
 
     while let Ok(event) = receiver.recv_async().await {
-        print!("received event");
+        println!("received event");
         if let Commit(commit) = event {
             match commit {
                 CommitEvent::Create { info, commit } => {
                     if let AppBskyFeedPost(record) = commit.record {
                         // check and see if this post is what we're looking for
-                        print!("Checking record: {}", record.text);
+                        println!("Checking record: {}", record.text);
                         if record.text.starts_with(target_emoji.as_str()) {
                             let facets = record.facets.clone().unwrap();
                             for facet in facets {
