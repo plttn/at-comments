@@ -18,7 +18,7 @@ pub async fn subscribe_posts() {
 
     let did = vec![Did::new(did_string.to_string()).unwrap()];
 
-    let _cursor = match latest_time_us() {
+    let cursor = match latest_time_us() {
         Ok(time) => chrono::DateTime::from_timestamp_micros(time.parse::<i64>().unwrap()),
         Err(_) => None,
     };
@@ -27,7 +27,7 @@ pub async fn subscribe_posts() {
         endpoint: DefaultJetstreamEndpoints::USWestOne.into(),
         wanted_dids: did,
         compression: JetstreamCompression::Zstd,
-        cursor: None,
+        cursor,
         wanted_collections: nsid,
     };
 
