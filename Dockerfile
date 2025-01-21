@@ -22,7 +22,7 @@ RUN --mount=type=cache,target=/build/target \
 FROM docker.io/debian:bookworm-slim
 
 RUN apt-get update -y && \
-  apt-get install -y libpq5 ca-certificates
+  apt-get install -y libpq5 ca-certificates openssl
 
 WORKDIR /app
 
