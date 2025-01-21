@@ -27,7 +27,7 @@ pub async fn subscribe_posts() {
         endpoint: DefaultJetstreamEndpoints::USWestOne.into(),
         wanted_dids: did,
         compression: JetstreamCompression::Zstd,
-        cursor: cursor,
+        cursor,
         wanted_collections: nsid,
     };
 
