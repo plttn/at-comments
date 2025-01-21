@@ -13,6 +13,7 @@ use std::env;
 pub async fn subscribe_posts() {
     dotenv().ok();
     let did_string = env::var("POSTER_DID").expect("POSTER_DID must be set");
+    let target_emoji = env::var("TARGET_EMOJI").expect("TARGET_EMOJI must be set");
     let nsid = vec![Nsid::new("app.bsky.feed.post".to_string()).unwrap()];
 
     let did = vec![Did::new(did_string.to_string()).unwrap()];
@@ -41,7 +42,7 @@ pub async fn subscribe_posts() {
                     if let AppBskyFeedPost(record) = commit.record {
                         // check and see if this post is what we're looking for
 
-                        if record.text.starts_with("🚀") {
+                        if record.text.starts_with(target_emoji.as_str()) {
                             let facets = record.facets.clone().unwrap();
                             for facet in facets {
                                 for feature in &facet.features {

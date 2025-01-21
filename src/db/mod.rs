@@ -27,7 +27,7 @@ pub fn insert_post_rkey<'a>(
 
     diesel::insert_into(posts::table)
         .values(&new_post)
-        .on_conflict(posts::slug)
+        .on_conflict(posts::slug) // if the slug already exists, do nothing
         .do_nothing()
         .returning(Post::as_returning())
         .get_result(connection)
@@ -42,6 +42,7 @@ pub fn get_post_meta(post_slug: &str) -> Result<Post, diesel::result::Error> {
     post
 }
 
+// get the latest time_us from the database for startup to backfill any missed posts
 pub fn get_latest_time_us() -> Result<String, diesel::result::Error> {
     use super::schema::posts::dsl::*;
 
