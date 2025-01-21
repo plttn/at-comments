@@ -36,6 +36,7 @@ pub async fn subscribe_posts() {
     let (receiver, _) = jetstream.connect().await.unwrap();
 
     while let Ok(event) = receiver.recv_async().await {
+        print!("received event");
         if let Commit(commit) = event {
             match commit {
                 CommitEvent::Create { info, commit } => {
