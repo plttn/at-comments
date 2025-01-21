@@ -5,5 +5,6 @@ diesel::table! {
         id -> Int4,
         slug -> Text,
         rkey -> Text,
+        time_us -> Text,
     }
 }
