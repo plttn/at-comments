@@ -1,4 +1,4 @@
-use crate::db::{get_latest_time_us, insert_post_rkey};
+use crate::db::{insert_post_rkey, latest_time_us};
 use atrium_api::app::bsky::richtext::facet::MainFeaturesItem;
 use atrium_api::record::KnownRecord::AppBskyFeedPost;
 use chrono;
@@ -18,7 +18,7 @@ pub async fn subscribe_posts() {
 
     let did = vec![Did::new(did_string.to_string()).unwrap()];
 
-    let cursor = match get_latest_time_us() {
+    let cursor = match latest_time_us() {
         Ok(time) => chrono::DateTime::from_timestamp_micros(time.parse::<i64>().unwrap()),
         Err(_) => None,
     };

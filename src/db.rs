@@ -33,7 +33,7 @@ pub fn insert_post_rkey<'a>(
         .get_result(connection)
 }
 
-pub fn get_post_meta(post_slug: &str) -> Result<Post, diesel::result::Error> {
+pub fn post_meta(post_slug: &str) -> Result<Post, diesel::result::Error> {
     use super::schema::posts::dsl::*;
 
     let connection = &mut establish_connection();
@@ -43,7 +43,7 @@ pub fn get_post_meta(post_slug: &str) -> Result<Post, diesel::result::Error> {
 }
 
 // get the latest time_us from the database for startup to backfill any missed posts
-pub fn get_latest_time_us() -> Result<String, diesel::result::Error> {
+pub fn latest_time_us() -> Result<String, diesel::result::Error> {
     use super::schema::posts::dsl::*;
 
     let connection = &mut establish_connection();
