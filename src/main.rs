@@ -7,18 +7,23 @@ mod post_listener;
 pub mod schema;
 
 use rocket::tokio;
+use rocket::serde::json::Json;
+use rocket::response::status::NotFound;
 
 #[get("/")]
 fn index() -> &'static str {
-    "Hello, world!"
+    "at-comments database API server"
 }
 
-#[get("/slug/<slug>")]
-fn get_post(slug: &str) -> Option<String> {
-    let result = db::get_post_rkey(slug).ok();
-
-    result
+#[get("/meta/<slug>")]
+fn get_post(slug: &str) -> Result<Json<models::Post>, NotFound<String>> {
+    match db::get_post_meta(slug) {
+        Ok(post) => Ok(Json(post)),
+        Err(_) => Err(NotFound("Resource was not found.".to_string())),
+    }
 }
+
+
 
 #[launch]
 async fn rocket() -> _ {
