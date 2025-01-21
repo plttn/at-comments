@@ -44,3 +44,10 @@ const getPostAndThreadData = async (
 that uses the Bluesky jetstream and persists all the relevant post rkeys in a
 database, so that then my clientside code can just make a request to the API
 server.
+
+## Caveats
+
+This work so far makes a whole lot of assumptions. It only tracks a single user
+currently. You could probably add more fields and DID handling to allow for
+multiple separate Bluesky users to be tracked, but given that I'm probably the
+only one that will be using it, I'm not too worried about that limitation.
