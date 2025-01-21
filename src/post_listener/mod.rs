@@ -1,5 +1,7 @@
+use crate::db::{get_latest_time_us, insert_post_rkey};
 use atrium_api::app::bsky::richtext::facet::MainFeaturesItem;
 use atrium_api::record::KnownRecord::AppBskyFeedPost;
+use chrono;
 use dotenvy::dotenv;
 use jetstream_oxide::{
     events::{commit::CommitEvent, JetstreamEvent::Commit},
@@ -7,8 +9,6 @@ use jetstream_oxide::{
     DefaultJetstreamEndpoints, JetstreamCompression, JetstreamConfig, JetstreamConnector,
 };
 use std::env;
-use crate::db::{get_latest_time_us, insert_post_rkey};
-use chrono;
 
 pub async fn subscribe_posts() {
     dotenv().ok();
@@ -20,7 +20,6 @@ pub async fn subscribe_posts() {
     let cursor = match get_latest_time_us() {
         Ok(time) => chrono::DateTime::from_timestamp_micros(time.parse::<i64>().unwrap()),
         Err(_) => None,
-        
     };
 
     let config = JetstreamConfig {
