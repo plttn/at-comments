@@ -31,7 +31,14 @@ pub async fn subscribe_posts() {
         wanted_collections: nsid,
     };
 
-    let jetstream = JetstreamConnector::new(config).unwrap();
+    let jetstream = match JetstreamConnector::new(config) {
+        Ok(jetstream) => jetstream,
+        Err(e) => {
+            eprintln!("Failed to create Jetstream connector: {}", e);
+            return;
+        }
+    };
+    
 
     let (receiver, _) = match jetstream.connect().await {
         Ok(connection) => connection,
@@ -40,6 +47,8 @@ pub async fn subscribe_posts() {
             return;
         }
     };
+
+    println!("Connected to Jetstream");
 
     while let Ok(event) = receiver.recv_async().await {
         println!("received event");
