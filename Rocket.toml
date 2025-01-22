@@ -1,0 +1,2 @@
+[default.databases.bluesky_comments]
+url = "postgres://postgres:mysecretpassword@localhost/bluesky-comments"
