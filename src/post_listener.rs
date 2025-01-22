@@ -24,7 +24,7 @@ pub async fn subscribe_posts() {
     };
 
     let config = JetstreamConfig {
-        endpoint: DefaultJetstreamEndpoints::USWestOne.into(),
+        endpoint: DefaultJetstreamEndpoints::USEastOne.into(),
         wanted_dids: did,
         compression: JetstreamCompression::Zstd,
         cursor,
