@@ -15,7 +15,7 @@ fn index() -> &'static str {
     "at-comments database API server"
 }
 
-#[get("/meta/<slug>")]
+#[get("/<slug>")]
 fn post_meta(slug: &str) -> Result<Json<models::Post>, NotFound<String>> {
     match db::post_meta(slug) {
         Ok(post) => Ok(Json(post)),
