@@ -26,7 +26,7 @@ fn post_meta(slug: &str) -> Result<Json<models::Post>, NotFound<String>> {
 #[launch]
 async fn rocket() -> _ {
     // setup websocket stuff
-    // tokio::spawn(post_listener::subscribe_posts());
+    tokio::spawn(post_listener::subscribe_posts());
     // setup server to respond
     rocket::build()
         .mount("/", routes![index])
