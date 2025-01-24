@@ -39,7 +39,7 @@ pub async fn subscribe_posts() {
         }
     };
 
-    let (receiver, _) = match jetstream.connect().await {
+    let receiver = match jetstream.connect().await {
         Ok(connection) => connection,
         Err(e) => {
             eprintln!("Failed to connect to Jetstream: {}", e);

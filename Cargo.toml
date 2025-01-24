@@ -10,3 +10,5 @@ dotenvy = "0.15"
 jetstream-oxide = "0.1.0"
 atrium-api ="0.24.5"
 chrono = { version = "0.4", features = ["serde"] }
+[patch.crates-io]
+jetstream-oxide = { path = "./lib/jetstream-oxide" }
