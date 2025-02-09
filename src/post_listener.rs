@@ -1,16 +1,18 @@
-use crate::db::{insert_post_rkey, latest_time_us};
 use atrium_api::app::bsky::richtext::facet::MainFeaturesItem;
 use atrium_api::record::KnownRecord::AppBskyFeedPost;
-use chrono;
 use dotenvy::dotenv;
 use jetstream_oxide::{
     events::{commit::CommitEvent, JetstreamEvent::Commit},
     exports::{Did, Nsid},
     DefaultJetstreamEndpoints, JetstreamCompression, JetstreamConfig, JetstreamConnector,
 };
+use log;
 use std::env;
 
-pub async fn subscribe_posts() {
+use rocket_db_pools::sqlx::{self};
+
+
+pub async fn websocket_listener(pool: sqlx::Pool<sqlx::Postgres>) {
     dotenv().ok();
     let did_string = env::var("POSTER_DID").expect("POSTER_DID must be set");
     let target_emoji = env::var("TARGET_EMOJI").expect("TARGET_EMOJI must be set");
@@ -18,23 +20,33 @@ pub async fn subscribe_posts() {
 
     let did = vec![Did::new(did_string.to_string()).unwrap()];
 
-    let cursor = match latest_time_us() {
-        Ok(time) => chrono::DateTime::from_timestamp_micros(time.parse::<i64>().unwrap()),
-        Err(_) => None,
-    };
+    // let cursor = match latest_time_us() {
+    //     Ok(time) => chrono::DateTime::from_timestamp_micros(time.parse::<i64>().unwrap()),
+    //     Err(_) => None,
+    // };
+
+    // let cursor = match sqlx::query("SELECT time_us FROM posts ORDER BY id DESC LIMIT 1")
+    //     .fetch_one(& pool)
+    //     .await {
+    //         Ok(row) => {
+    //             let time = row.get::<String, _>(0);
+    //             chrono::DateTime::from_timestamp_micros(time.parse::<i64>().unwrap())
+    //         }
+    //         Err(_) => None,
+    //     };
 
     let config = JetstreamConfig {
         endpoint: DefaultJetstreamEndpoints::USEastOne.into(),
         wanted_dids: did,
         compression: JetstreamCompression::Zstd,
-        cursor,
+        cursor: None,
         wanted_collections: nsid,
     };
 
     let jetstream = match JetstreamConnector::new(config) {
         Ok(jetstream) => jetstream,
         Err(e) => {
-            eprintln!("Failed to create Jetstream connector: {}", e);
+            log::error!("[jetstream] Failed to create Jetstream connector: {}", e);
             return;
         }
     };
@@ -42,21 +54,20 @@ pub async fn subscribe_posts() {
     let receiver = match jetstream.connect().await {
         Ok(connection) => connection,
         Err(e) => {
-            eprintln!("Failed to connect to Jetstream: {}", e);
+            log::error!("[jetstream] Failed to connect to Jetstream: {}", e);
             return;
         }
     };
 
-    println!("Connected to Jetstream");
-
-    while let Ok(event) = receiver.recv_async().await {
-        println!("received event");
+    log::info!("[jetstream] Connected to Jetstream");
+      while let Ok(event) = receiver.recv_async().await {
+        log::info!("[jetstream] received event");
         if let Commit(commit) = event {
             match commit {
                 CommitEvent::Create { info, commit } => {
                     if let AppBskyFeedPost(record) = commit.record {
                         // check and see if this post is what we're looking for
-                        println!("Checking record: {}", record.text);
+                        log::info!("[jetstream] Checking record: {}", record.text);
                         if record.text.starts_with(target_emoji.as_str()) {
                             let facets = record.facets.clone().unwrap();
                             for facet in facets {
@@ -65,7 +76,6 @@ pub async fn subscribe_posts() {
                                         atrium_api::types::Union::Refs(MainFeaturesItem::Link(
                                             link,
                                         )) => {
-                                            println!("Link: {}", link.uri);
                                             let rkey = commit.info.rkey.clone();
                                             let uri = link.uri.clone();
                                             // get the slug
@@ -74,16 +84,22 @@ pub async fn subscribe_posts() {
                                             let time_us_string = info.time_us.to_string();
                                             let time_us = time_us_string.as_str();
 
-                                            // insert into db
-                                            // should probably insert cursor too
-                                            match insert_post_rkey(slug, &rkey, time_us) {
-                                                Ok(_) => {
-                                                    println!("Inserted post");
+                                            match sqlx::query("INSERT INTO posts (slug, rkey, time_us) VALUES ($1, $2, $3) ON CONFLICT (slug) DO NOTHING")
+                                                .bind(slug)
+                                                .bind(rkey)
+                                                .bind(time_us)
+                                                .execute(& pool)
+                                                .await {
+                                                    Ok(_) => {
+                                                        log::info!("[jetstream] Inserted post");
+                                                    }
+                                                    Err(e) => {
+                                                        log::error!(
+                                                            "[jetstream] Failed to insert post: {}",
+                                                            e
+                                                        );
+                                                    }
                                                 }
-                                                Err(e) => {
-                                                    eprintln!("Failed to insert post: {}", e);
-                                                }
-                                            };
                                         }
                                         _ => {} // ick
                                     }

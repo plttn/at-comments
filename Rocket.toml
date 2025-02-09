@@ -1,2 +1,6 @@
 [default.databases.bluesky_comments]
 url = "postgres://postgres:mysecretpassword@localhost/bluesky-comments"
+
+[global]
+poster_did="did:plc:gaiatc34nb7yhkgoxrf44gpl"
+target_emoji="📝"

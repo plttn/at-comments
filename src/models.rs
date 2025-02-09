@@ -20,3 +20,12 @@ pub struct NewPost<'a> {
     pub rkey: &'a str,
     pub time_us: &'a str,
 }
+
+#[derive(Queryable, Serialize, Debug)]
+#[serde(crate = "rocket::serde")]
+pub struct Meta {
+    pub id: i32,
+    pub slug: String,
+    pub rkey: String,
+    pub time_us: String,
+}

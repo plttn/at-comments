@@ -1,12 +1,17 @@
 [package]
 name = "at-comments"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [dependencies]
-rocket = {version = "0.5.1", features = ["json"]}
+rocket = { version = "0.5.1", features = ["json"] }
 diesel = { version = "2.2.0", features = ["postgres"] }
 dotenvy = "0.15"
 jetstream-oxide = "0.1.1"
-atrium-api ="0.24.5"
+atrium-api = "0.24.5"
 chrono = { version = "0.4", features = ["serde"] }
+log = "0.4.25"
+
+[dependencies.rocket_db_pools]
+version = "0.2.0"
+features = ["sqlx_postgres"]
