@@ -10,6 +10,7 @@ atrium-api = "0.24.5"
 log = "0.4.25"
 serde = "1.0.217"
 chrono = "0.4.39"
+sqlx= "0.8.0"
 [dependencies.rocket_db_pools]
 version = "0.2.0"
 features = ["sqlx_postgres"]
