@@ -8,8 +8,8 @@ rocket = { version = "0.5.1", features = ["json"] }
 dotenvy = "0.15"
 jetstream-oxide = "0.1.1"
 atrium-api = "0.24.5"
-chrono = { version = "0.4", features = ["serde"] }
 log = "0.4.25"
+serde = "1.0.217"
 [dependencies.rocket_db_pools]
 version = "0.2.0"
 features = ["sqlx_postgres"]

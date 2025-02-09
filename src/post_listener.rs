@@ -7,14 +7,25 @@ use jetstream_oxide::{
     DefaultJetstreamEndpoints, JetstreamCompression, JetstreamConfig, JetstreamConnector,
 };
 use log;
-use std::env;
 
+use rocket::Config;
 use rocket_db_pools::sqlx::{self};
+use serde::Deserialize;
+
+#[derive(Deserialize, Debug)]
+struct ListenerConfig {
+    poster_did: String,
+    target_emoji: String,
+}
 
 pub async fn websocket_listener(pool: sqlx::Pool<sqlx::Postgres>) {
+    let config = Config::figment().extract::<ListenerConfig>().unwrap();
     dotenv().ok();
-    let did_string = env::var("POSTER_DID").expect("POSTER_DID must be set");
-    let target_emoji = env::var("TARGET_EMOJI").expect("TARGET_EMOJI must be set");
+    let did_string = config.poster_did;
+    let target_emoji = config.target_emoji;
+
+    // let did_string = env::var("POSTER_DID").expect("POSTER_DID must be set");
+    // let target_emoji = env::var("TARGET_EMOJI").expect("TARGET_EMOJI must be set");
     let nsid = vec![Nsid::new("app.bsky.feed.post".to_string()).unwrap()];
 
     let did = vec![Did::new(did_string.to_string()).unwrap()];
@@ -58,7 +69,7 @@ pub async fn websocket_listener(pool: sqlx::Pool<sqlx::Postgres>) {
         }
     };
 
-    log::info!("[jetstream] Connected to Jetstream");
+    log::warn!("[jetstream] Connected to Jetstream for DID: {}", did_string);
     while let Ok(event) = receiver.recv_async().await {
         log::info!("[jetstream] received event");
         if let Commit(commit) = event {
