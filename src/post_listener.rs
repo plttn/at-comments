@@ -1,6 +1,5 @@
 use atrium_api::app::bsky::richtext::facet::MainFeaturesItem;
 use atrium_api::record::KnownRecord::AppBskyFeedPost;
-use dotenvy::dotenv;
 use jetstream_oxide::{
     events::{commit::CommitEvent, JetstreamEvent::Commit},
     exports::{Did, Nsid},
@@ -22,7 +21,6 @@ struct ListenerConfig {
 
 pub async fn websocket_listener(pool: sqlx::Pool<sqlx::Postgres>) {
     let config = Config::figment().extract::<ListenerConfig>().unwrap();
-    dotenv().ok();
     let did_string = config.poster_did;
     let target_emoji = config.target_emoji;
 

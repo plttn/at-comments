@@ -99,7 +99,6 @@ version = "0.2.0"
 dependencies = [
  "atrium-api",
  "chrono",
- "dotenvy",
  "jetstream-oxide",
  "log",
  "rocket",
