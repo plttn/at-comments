@@ -11,6 +11,8 @@ use log;
 use rocket::Config;
 use rocket_db_pools::sqlx::{self};
 use serde::Deserialize;
+use sqlx::Row;
+use chrono;
 
 #[derive(Deserialize, Debug)]
 struct ListenerConfig {
@@ -30,26 +32,22 @@ pub async fn websocket_listener(pool: sqlx::Pool<sqlx::Postgres>) {
 
     let did = vec![Did::new(did_string.to_string()).unwrap()];
 
-    // let cursor = match latest_time_us() {
-    //     Ok(time) => chrono::DateTime::from_timestamp_micros(time.parse::<i64>().unwrap()),
-    //     Err(_) => None,
-    // };
 
-    // let cursor = match sqlx::query("SELECT time_us FROM posts ORDER BY id DESC LIMIT 1")
-    //     .fetch_one(& pool)
-    //     .await {
-    //         Ok(row) => {
-    //             let time = row.get::<String, _>(0);
-    //             chrono::DateTime::from_timestamp_micros(time.parse::<i64>().unwrap())
-    //         }
-    //         Err(_) => None,
-    //     };
+    let cursor = match sqlx::query("SELECT time_us FROM posts ORDER BY id DESC LIMIT 1")
+        .fetch_one(& pool)
+        .await {
+            Ok(row) => {
+                let time = row.get::<String, _>(0);
+                chrono::DateTime::from_timestamp_micros(time.parse::<i64>().unwrap())
+            }
+            Err(_) => None,
+        };
 
     let config = JetstreamConfig {
         endpoint: DefaultJetstreamEndpoints::USEastOne.into(),
         wanted_dids: did,
         compression: JetstreamCompression::Zstd,
-        cursor: None,
+        cursor,
         wanted_collections: nsid,
     };
 
