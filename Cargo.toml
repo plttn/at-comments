@@ -5,7 +5,7 @@ edition = "2021"
 
 [dependencies]
 rocket = { version = "0.5.1", features = ["json"] }
-diesel = { version = "2.2.0", features = ["postgres"] }
+diesel = { version = "2.2.7", features = ["postgres"] }
 dotenvy = "0.15"
 jetstream-oxide = "0.1.1"
 atrium-api = "0.24.5"
