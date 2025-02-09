@@ -11,7 +11,6 @@ use std::env;
 
 use rocket_db_pools::sqlx::{self};
 
-
 pub async fn websocket_listener(pool: sqlx::Pool<sqlx::Postgres>) {
     dotenv().ok();
     let did_string = env::var("POSTER_DID").expect("POSTER_DID must be set");
@@ -60,7 +59,7 @@ pub async fn websocket_listener(pool: sqlx::Pool<sqlx::Postgres>) {
     };
 
     log::info!("[jetstream] Connected to Jetstream");
-      while let Ok(event) = receiver.recv_async().await {
+    while let Ok(event) = receiver.recv_async().await {
         log::info!("[jetstream] received event");
         if let Commit(commit) = event {
             match commit {

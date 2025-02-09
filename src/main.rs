@@ -3,7 +3,6 @@ extern crate rocket;
 
 pub mod models;
 mod post_listener;
-pub mod schema;
 
 use models::Meta;
 use rocket::fairing::AdHoc;
