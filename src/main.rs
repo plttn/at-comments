@@ -47,19 +47,14 @@ async fn post_meta(
 
 #[launch]
 fn rocket() -> _ {
-    // setup websocket stuff
-    // tokio::spawn(post_listener::subscribe_posts());
-    // setup server to respond
     rocket::build()
-        .attach(Comments::init())
+        .attach(Comments::init()) // init the database
         .attach(AdHoc::try_on_ignite("Jetstream listener", |rocket| async {
             let pool = match Comments::fetch(&rocket) {
                 Some(pool) => pool.0.clone(), // clone the wrapped pool
                 None => return Err(rocket),
             };
-
-            rocket::tokio::task::spawn(post_listener::websocket_listener(pool));
-
+            rocket::tokio::task::spawn(post_listener::websocket_listener(pool)); // spawn jetstream listener, pass it a clone of the DB
             Ok(rocket)
         }))
         .mount("/", routes![index, post_meta])
