@@ -5,13 +5,11 @@ use jetstream_oxide::{
     exports::{Did, Nsid},
     DefaultJetstreamEndpoints, JetstreamCompression, JetstreamConfig, JetstreamConnector,
 };
-use log;
 
 use rocket::Config;
 use rocket_db_pools::sqlx::{self};
 use serde::Deserialize;
 use sqlx::Row;
-use chrono;
 
 #[derive(Deserialize, Debug)]
 struct ListenerConfig {
