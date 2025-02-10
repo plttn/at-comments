@@ -5,3 +5,6 @@ target_emoji="📝"
 [release]
 poster_did="did:plc:cwdkf4xxjpznceembuuspt3d"
 target_emoji="📝"
+
+[default]
+port=4321
