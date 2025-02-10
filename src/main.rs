@@ -6,7 +6,6 @@ mod post_listener;
 
 use models::Meta;
 use rocket::fairing::AdHoc;
-use rocket::response::status::NotFound;
 use rocket::serde::json::Json;
 
 use rocket_db_pools::sqlx::Row;
@@ -22,27 +21,21 @@ fn index() -> &'static str {
 }
 
 #[get("/<slug>")]
-async fn post_meta(
-    mut db: Connection<Comments>,
-    slug: &str,
-) -> Result<Json<Meta>, NotFound<String>> {
-    let result = sqlx::query("SELECT * FROM posts WHERE slug = $1")
+async fn post_meta(mut db: Connection<Comments>, slug: &str) -> Option<Json<Meta>> {
+    sqlx::query("SELECT * FROM posts WHERE slug = $1")
         .bind(slug)
         .fetch_one(&mut **db)
-        .await;
-
-    match result {
-        Ok(row) => {
+        .await
+        .map(|row| {
             let meta = Meta {
                 id: row.get(0),
                 slug: row.get(1),
                 rkey: row.get(2),
                 time_us: row.get(3),
             };
-            Ok(Json(meta))
-        }
-        Err(_) => Err(NotFound("Resource was not found.".to_string())),
-    }
+            Json(meta)
+        })
+        .ok()
 }
 
 #[launch]
