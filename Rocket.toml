@@ -1,10 +1,10 @@
 [debug]
-poster_did="did:plc:gaiatc34nb7yhkgoxrf44gpl"
-target_emoji="📝"
+poster_did = "did:plc:gaiatc34nb7yhkgoxrf44gpl"
+target_emoji = "📝"
 
 [release]
-poster_did="did:plc:cwdkf4xxjpznceembuuspt3d"
-target_emoji="📝"
+poster_did = "did:plc:cwdkf4xxjpznceembuuspt3d"
+target_emoji = "📝"
 
 [default]
-port=4321
+port = 4321
