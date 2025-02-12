@@ -6,7 +6,6 @@ mod post_listener;
 
 use models::Meta;
 use rocket::fairing::{self, Fairing};
-use rocket::serde::json::Json;
 use rocket::serde::json::{json, Value};
 
 use rocket::{Build, Request, Rocket};
@@ -57,10 +56,12 @@ async fn post_meta(mut db: Connection<Comments>, slug: &str) -> Option<Value> {
                 time_us: row.get(3),
             };
 
-            json![{"status" : "success",
-            "data": {
-                "post": meta
-             }}]
+            json![{
+                "status" : "success",
+                "data": {
+                    "post": meta
+                }
+            }]
         })
         .ok()
 }
