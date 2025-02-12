@@ -7,8 +7,9 @@ mod post_listener;
 use models::Meta;
 use rocket::fairing::{self, Fairing};
 use rocket::serde::json::Json;
+use rocket::serde::json::{json, Value};
 
-use rocket::{Build, Rocket};
+use rocket::{Build, Request, Rocket};
 use rocket_db_pools::sqlx::Row;
 use rocket_db_pools::{sqlx, Connection, Database};
 
@@ -42,8 +43,8 @@ fn index() -> &'static str {
     "at-comments database API server"
 }
 
-#[get("/<slug>")]
-async fn post_meta(mut db: Connection<Comments>, slug: &str) -> Option<Json<Meta>> {
+#[get("/slug/<slug>")]
+async fn post_meta(mut db: Connection<Comments>, slug: &str) -> Option<Value> {
     sqlx::query("SELECT * FROM posts WHERE slug = $1")
         .bind(slug)
         .fetch_one(&mut **db)
@@ -55,15 +56,41 @@ async fn post_meta(mut db: Connection<Comments>, slug: &str) -> Option<Json<Meta
                 rkey: row.get(2),
                 time_us: row.get(3),
             };
-            Json(meta)
+
+            json![{"status" : "success",
+            "data": {
+                "post": meta
+             }}]
         })
         .ok()
 }
 
+#[catch(404)]
+fn not_found(req: &Request) -> String {
+    format!("Sorry, '{}' is not a valid path.", req.uri())
+}
+
+#[catch(404)]
+fn slug_not_found() -> Value {
+    json![{
+        "status": "fail",
+        "data": {"message": "Post not found"}
+    }]
+}
+
+#[catch(503)]
+fn service_unavailable() -> Value {
+    json![{
+        "status": "error",
+        "data": {"message": "Unable to communicate with database"}
+    }]
+}
 #[launch]
 fn rocket() -> _ {
     rocket::build()
         .attach(Comments::init()) // init the database
         .attach(ListenerFairing)
+        .register("/", catchers![not_found])
+        .register("/slug", catchers![slug_not_found, service_unavailable])
         .mount("/", routes![index, post_meta])
 }
