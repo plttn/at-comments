@@ -23,7 +23,7 @@ pub async fn websocket_listener(pool: sqlx::Pool<sqlx::Postgres>) {
 
     let did = vec![Did::new(listener_config.poster_did.clone()).unwrap()];
 
-    let cursor = match sqlx::query("SELECT time_us FROM posts ORDER BY id DESC LIMIT 1")
+    let mut cursor = match sqlx::query("SELECT time_us FROM posts ORDER BY id DESC LIMIT 1")
         .fetch_one(&pool)
         .await
     {
@@ -34,8 +34,18 @@ pub async fn websocket_listener(pool: sqlx::Pool<sqlx::Postgres>) {
         Err(_) => None,
     };
 
+    let diff = match cursor {
+        Some(cursor) => chrono::Utc::now() - cursor,
+        None => chrono::Duration::days(1),
+    };
+
+    if diff.num_days() >= 1 {
+        log::warn!("[jetstream] Cursor is more than a day old, resetting cursor");
+        cursor = None;
+    }
+
     let jetstream_config = JetstreamConfig {
-        endpoint: DefaultJetstreamEndpoints::USEastOne.into(),
+        endpoint: DefaultJetstreamEndpoints::USWestOne.into(),
         wanted_dids: did,
         compression: JetstreamCompression::Zstd,
         cursor,
@@ -70,45 +80,43 @@ pub async fn websocket_listener(pool: sqlx::Pool<sqlx::Postgres>) {
                 // check and see if this post is what we're looking for
                 log::info!("[jetstream] Checking record: {}", record.text);
                 if record.text.starts_with(&listener_config.target_emoji) {
-                    let facets = record.facets.clone().unwrap();
-                    for facet in facets {
-                        for feature in &facet.features {
-                            if let atrium_api::types::Union::Refs(MainFeaturesItem::Link(link)) =
-                                feature
-                            {
-                                let rkey = commit.info.rkey.clone();
-                                let uri = link.uri.clone();
-                                // get the slug
-                                let uri_parts: Vec<&str> = uri.split('/').collect();
-                                let slug = match uri_parts.last() {
-                                    Some(&last_part) => last_part,
-                                    None => {
-                                        log::error!(
-                                            "[jetstream] Failed to extract slug from URI: {}",
-                                            uri
-                                        );
-                                        continue;
-                                    }
-                                };
+                    if let Some(facets) = record.facets.clone() {
+                        let features = facets
+                            .iter()
+                            .flat_map(|facet| &facet.features)
+                            .filter_map(|feature| {
+                                if let atrium_api::types::Union::Refs(MainFeaturesItem::Link(
+                                    link,
+                                )) = feature
+                                {
+                                    Some((commit.info.rkey.clone(), link.uri.clone()))
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect::<Vec<_>>();
+
+                        for (rkey, uri) in features {
+                            let uri_parts: Vec<&str> = uri.split('/').collect();
+                            if let Some(&slug) = uri_parts.last() {
                                 let time_us_string = info.time_us.to_string();
                                 let time_us = &time_us_string;
 
                                 match sqlx::query("INSERT INTO posts (slug, rkey, time_us) VALUES ($1, $2, $3) ON CONFLICT (slug) DO NOTHING")
-                                        .bind(slug)
-                                        .bind(rkey)
-                                        .bind(time_us)
-                                        .execute(& pool)
-                                        .await {
-                                            Ok(_) => {
-                                                log::info!("[jetstream] Inserted post");
-                                            }
-                                            Err(e) => {
-                                                log::error!(
-                                                    "[jetstream] Failed to insert post: {}",
-                                                    e
-                                                );
-                                            }
+                                    .bind(slug)
+                                    .bind(rkey)
+                                    .bind(time_us)
+                                    .execute(&pool)
+                                    .await {
+                                        Ok(_) => {
+                                            log::info!("[jetstream] Inserted post");
                                         }
+                                        Err(e) => {
+                                            log::error!("[jetstream] Failed to insert post: {}", e);
+                                        }
+                                    }
+                            } else {
+                                log::error!("[jetstream] Failed to extract slug from URI: {}", uri);
                             }
                         }
                     }
