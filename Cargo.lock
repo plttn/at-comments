@@ -95,7 +95,7 @@ dependencies = [
 
 [[package]]
 name = "at-comments"
-version = "0.3.2"
+version = "0.3.3"
 dependencies = [
  "atrium-api",
  "chrono",
