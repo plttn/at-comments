@@ -2,6 +2,7 @@
 name = "at-comments"
 version = "0.3.3"
 edition = "2021"
+license = "MIT"
 
 [dependencies]
 rocket = { version = "0.5.1", features = ["json"] }
