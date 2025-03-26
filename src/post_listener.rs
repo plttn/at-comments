@@ -50,6 +50,7 @@ pub async fn websocket_listener(pool: sqlx::Pool<sqlx::Postgres>) {
         compression: JetstreamCompression::Zstd,
         cursor,
         wanted_collections: nsid,
+        ..Default::default()
     };
 
     let jetstream = match JetstreamConnector::new(jetstream_config) {
