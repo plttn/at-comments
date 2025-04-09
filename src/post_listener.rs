@@ -125,4 +125,6 @@ pub async fn websocket_listener(pool: sqlx::Pool<sqlx::Postgres>) {
             }
         }
     }
+    log::error!("[jetstream] Post listener exited");
+    std::process::exit(1);
 }
