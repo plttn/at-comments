@@ -66,6 +66,14 @@ async fn post_meta(mut db: Connection<Comments>, slug: &str) -> Option<Value> {
         .ok()
 }
 
+#[get("/slug")]
+async fn slug_root() -> Value {
+    json![{
+        "status": "fail",
+        "data": {"slug": "A slug is required: /slug/<slug>"}
+    }]
+}
+
 #[catch(404)]
 fn not_found(req: &Request) -> String {
     format!("Sorry, '{}' is not a valid path.", req.uri())
@@ -93,5 +101,5 @@ fn rocket() -> _ {
         .attach(ListenerFairing)
         .register("/", catchers![not_found])
         .register("/slug", catchers![slug_not_found, service_unavailable])
-        .mount("/", routes![index, post_meta])
+        .mount("/", routes![index, post_meta, slug_root])
 }
