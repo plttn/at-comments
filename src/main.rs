@@ -39,7 +39,18 @@ impl Fairing for ListenerFairing {
 
 #[get("/")]
 fn index() -> &'static str {
-    "at-comments database API server"
+    // "at-comments database API server"
+
+    r##"
+          _                                                  _
+         | |                                                | |
+     __ _| |_ ______ ___ ___  _ __ ___  _ __ ___   ___ _ __ | |_ ___
+    / _` | __|______/ __/ _ \| '_ ` _ \| '_ ` _ \ / _ \ '_ \| __/ __|
+    | (_| | |_      | (_| (_) | | | | | | | | | | |  __/ | | | |_\__ \
+    \__,_|\__|      \___\___/|_| |_| |_|_| |_| |_|\___|_| |_|\__|___/
+
+    at-comments API server.
+    "##
 }
 
 #[get("/slug/<slug>")]
