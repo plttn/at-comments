@@ -10,7 +10,7 @@ jetstream-oxide = "0.1.2"
 atrium-api = "0.25.2"
 log = "0.4.25"
 serde = "1.0.217"
-chrono = "0.4.39"
+chrono = "0.4.41"
 [dependencies.rocket_db_pools]
 version = "0.2.0"
 features = ["sqlx_postgres"]
