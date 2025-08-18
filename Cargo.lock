@@ -143,9 +143,9 @@ dependencies = [
 
 [[package]]
 name = "atrium-api"
-version = "0.25.4"
+version = "0.25.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46355d3245edc7b3160b2a45fe55d09a6963ebd3eee0252feb6b72fb0eb71463"
+checksum = "8bceed6a87be6213040945254aa94191490fea22b7f49dec584e349f336cc17a"
 dependencies = [
  "atrium-common",
  "atrium-xrpc",
