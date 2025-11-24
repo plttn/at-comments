@@ -98,7 +98,7 @@ pub async fn websocket_listener(pool: sqlx::Pool<sqlx::Postgres>) {
                             .collect::<Vec<_>>();
 
                         for (rkey, uri) in features {
-                            let uri_parts: Vec<&str> = uri.split('/').collect();
+                            let uri_parts: Vec<&str> = uri.split_terminator('/').collect();
                             if let Some(&slug) = uri_parts.last() {
                                 let time_us_string = info.time_us.to_string();
                                 let time_us = &time_us_string;
