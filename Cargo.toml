@@ -8,7 +8,7 @@ license = "MIT"
 rocket = { version = "0.5.1", features = ["json"] }
 jetstream-oxide = "0.1.2"
 atrium-api = "0.25.4"
-log = "0.4.25"
+log = "0.4.28"
 serde = "1.0.217"
 chrono = "0.4.41"
 [dependencies.rocket_db_pools]
