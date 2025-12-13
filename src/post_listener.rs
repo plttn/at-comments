@@ -98,26 +98,23 @@ pub async fn websocket_listener(pool: sqlx::Pool<sqlx::Postgres>) {
                             .collect::<Vec<_>>();
 
                         for (rkey, uri) in features {
-                            let uri_parts: Vec<&str> = uri.split_terminator('/').collect();
-                            if let Some(&slug) = uri_parts.last() {
-                                let time_us_string = info.time_us.to_string();
-                                let time_us = &time_us_string;
-
-                                match sqlx::query("INSERT INTO posts (slug, rkey, time_us) VALUES ($1, $2, $3) ON CONFLICT (slug) DO NOTHING")
-                                    .bind(slug)
-                                    .bind(rkey)
-                                    .bind(time_us)
-                                    .execute(&pool)
-                                    .await {
-                                        Ok(_) => {
-                                            log::info!("[jetstream] Inserted post");
-                                        }
-                                        Err(e) => {
-                                            log::error!("[jetstream] Failed to insert post: {}", e);
-                                        }
-                                    }
-                            } else {
+                            let Some(slug) = uri.split_terminator('/').next_back() else {
                                 log::error!("[jetstream] Failed to extract slug from URI: {}", uri);
+                                continue;
+                            };
+
+                            let time_us = info.time_us.to_string();
+
+                            if let Err(e) = sqlx::query("INSERT INTO posts (slug, rkey, time_us) VALUES ($1, $2, $3) ON CONFLICT (slug) DO NOTHING")
+                                .bind(slug)
+                                .bind(&rkey)
+                                .bind(&time_us)
+                                .execute(&pool)
+                                .await
+                            {
+                                log::error!("[jetstream] Failed to insert post: {}", e);
+                            } else {
+                                log::info!("[jetstream] Inserted post");
                             }
                         }
                     }
