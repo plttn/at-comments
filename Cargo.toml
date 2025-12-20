@@ -11,7 +11,7 @@ url = "2"
 jetstream-oxide = "0.1.2"
 atrium-api = "0.25.4"
 log = "0.4.28"
-serde = "1.0.217"
+serde = "1.0.228"
 chrono = "0.4.42"
 
 [dependencies.rocket_db_pools]
