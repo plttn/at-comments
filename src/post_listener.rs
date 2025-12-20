@@ -86,7 +86,7 @@ pub async fn websocket_listener(pool: sqlx::Pool<sqlx::Postgres>) {
             None => chrono::Duration::days(1),
         };
         if diff.num_days() >= 1 {
-            log::info!("[jetstream] Cursor is more than a day old, resetting cursor");
+            log::warn!("[jetstream] Cursor is more than a day old, resetting cursor");
             cursor = None;
         }
 
@@ -94,7 +94,7 @@ pub async fn websocket_listener(pool: sqlx::Pool<sqlx::Postgres>) {
         let endpoint_str = endpoints[endpoint_index].as_str();
         match check_ws_endpoint_reachable(endpoint_str, 1500).await {
             Ok(()) => {
-                log::info!("[jetstream] Endpoint {} reachable (TCP)", endpoint_str);
+                log::warn!("[jetstream] Endpoint {} reachable (TCP)", endpoint_str);
             }
             Err(err) => {
                 log::warn!(
@@ -161,7 +161,7 @@ pub async fn websocket_listener(pool: sqlx::Pool<sqlx::Postgres>) {
             }
         };
 
-        log::info!(
+        log::warn!(
             "[jetstream] Listening for: {} and emoji: {} on endpoint {}",
             listener_config.poster_did,
             listener_config.target_emoji,
@@ -180,7 +180,7 @@ pub async fn websocket_listener(pool: sqlx::Pool<sqlx::Postgres>) {
             if let Commit(CommitEvent::Create { info, commit }) = event {
                 if let AppBskyFeedPost(record) = commit.record {
                     // check and see if this post is what we're looking for
-                    log::info!("[jetstream] Checking record: {}", record.text);
+                    log::warn!("[jetstream] Checking record: {}", record.text);
                     if record.text.starts_with(&listener_config.target_emoji) {
                         if let Some(facets) = record.facets.clone() {
                             let features = facets
@@ -218,7 +218,7 @@ pub async fn websocket_listener(pool: sqlx::Pool<sqlx::Postgres>) {
                                 {
                                     log::error!("[jetstream] Failed to insert post: {}", e);
                                 } else {
-                                    log::info!("[jetstream] Inserted post");
+                                    log::warn!("[jetstream] Inserted post");
                                 }
                             }
                         }
@@ -240,7 +240,7 @@ pub async fn websocket_listener(pool: sqlx::Pool<sqlx::Postgres>) {
         // Reset retry_attempt if this connection was healthy (saw events or lasted past threshold).
         if saw_event || connected_at.elapsed().as_secs() > success_threshold_s {
             retry_attempt = 0;
-            log::info!("[jetstream] Connection was healthy; resetting retry attempts");
+            log::warn!("[jetstream] Connection was healthy; resetting retry attempts");
         } else {
             retry_attempt = retry_attempt.saturating_add(1);
         }
