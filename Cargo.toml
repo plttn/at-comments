@@ -10,7 +10,7 @@ tokio = { version = "1", features = ["rt-multi-thread", "macros", "time"] }
 url = "2"
 jetstream-oxide = "0.1.2"
 atrium-api = "0.25.4"
-log = "0.4.28"
+log = "0.4.29"
 serde = "1.0.217"
 chrono = "0.4.42"
 
