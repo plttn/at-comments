@@ -1,46 +1,73 @@
-#[macro_use]
-extern crate rocket;
-
-pub mod models;
+mod models;
 mod rss_poller;
+mod settings;
 
-use models::Meta;
-use rocket::fairing::{self, Fairing};
-use rocket::serde::json::{json, Value};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    response::IntoResponse,
+    routing::get,
+    Json, Router,
+};
+use serde_json::{json, Value};
+use sqlx::postgres::PgPoolOptions;
+use sqlx::Row;
+use std::net::SocketAddr;
 
-use rocket::{Build, Request, Rocket};
-use rocket_db_pools::sqlx::Row;
-use rocket_db_pools::{sqlx, Connection, Database};
+// use crate::settings::Settings;
 
-#[derive(Database)]
-#[database("bluesky_comments")]
-struct Comments(sqlx::PgPool);
-
-struct PollerFairing;
-
-#[rocket::async_trait]
-impl Fairing for PollerFairing {
-    fn info(&self) -> rocket::fairing::Info {
-        rocket::fairing::Info {
-            name: "RSS Poller",
-            kind: rocket::fairing::Kind::Ignite,
-        }
-    }
-
-    async fn on_ignite(&self, rocket: Rocket<Build>) -> fairing::Result {
-        let pool = match Comments::fetch(&rocket) {
-            Some(pool) => pool.0.clone(),
-            None => return Err(rocket),
-        };
-        rocket::tokio::task::spawn(rss_poller::rss_polling_task(pool));
-        Ok(rocket)
-    }
+#[derive(Clone)]
+struct AppState {
+    pool: sqlx::PgPool,
 }
 
-#[get("/")]
-fn index() -> &'static str {
-    // "at-comments database API server"
+// use config::Config;
 
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::init();
+
+    let config = settings::build_config()?;
+
+    // Create database pool
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&config.get_string("database.url")?)
+        .await?;
+
+    log::info!("Connected to database");
+
+    let app_state = AppState { pool: pool.clone() };
+
+    // Spawn background RSS poller task
+    let poller_pool = pool.clone();
+    tokio::spawn(async move {
+        rss_poller::rss_polling_task(poller_pool).await;
+    });
+
+    // Build router
+    let app = Router::new()
+        .route("/", get(index))
+        .route("/slug", get(slug_root))
+        .route("/slug/:slug", get(post_meta))
+        .fallback(not_found)
+        .with_state(app_state);
+
+    // Bind and serve
+    let address = config.get_string("app.address")?;
+    let port = config.get_int("app.port")? as u16;
+    let addr = format!("{}:{}", address, port).parse::<SocketAddr>()?;
+    let listener = tokio::net::TcpListener::bind(&addr).await?;
+    log::info!("Server listening on {}", addr);
+
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+
+    Ok(())
+}
+
+async fn index() -> &'static str {
     r##"
         __                                                         __
        /\ \__                                                     /\ \__
@@ -50,100 +77,116 @@ fn index() -> &'static str {
 \ \__/.\_\\ \__\ \____\ \____/\ \_\ \_\ \_\ \_\ \_\ \_\ \____\ \_\ \_\ \__\/\____/
  \/__/\/_/ \/__/\/____/\/___/  \/_/\/_/\/_/\/_/\/_/\/_/\/____/\/_/\/_/\/__/\/___/
 
-
     at-comments API server.
     "##
 }
 
-#[get("/slug/<slug>")]
-async fn post_meta(mut db: Connection<Comments>, slug: &str) -> Option<Value> {
-    let db_result = sqlx::query("SELECT * FROM posts WHERE slug = $1")
-        .bind(slug)
-        .fetch_one(&mut **db)
+async fn slug_root() -> Json<Value> {
+    Json(json!({
+        "status": "fail",
+        "data": {"slug": "A slug is required: /slug/<slug>"}
+    }))
+}
+
+async fn post_meta(
+    State(state): State<AppState>,
+    Path(slug): Path<String>,
+) -> Result<Json<Value>, AppError> {
+    let result = sqlx::query("SELECT id, slug, rkey, time_us FROM posts WHERE slug = $1")
+        .bind(&slug)
+        .fetch_one(&state.pool)
         .await;
 
-    match db_result {
+    match result {
         Ok(row) => {
-            let meta = Meta {
+            let meta = models::Meta {
                 id: row.get(0),
                 slug: row.get(1),
                 rkey: row.get(2),
                 time_us: row.get(3),
             };
-            Some(json![{
+            Ok(Json(json!({
                 "status": "success",
                 "data": {"post": meta}
-            }])
+            })))
         }
         Err(_) => {
             // Not in DB — check the live RSS feed
-            let (rkey, time_us) = rss_poller::lookup_slug_in_rss(slug).await?;
+            match rss_poller::lookup_slug_in_rss(&slug).await {
+                Some((rkey, time_us)) => {
+                    // Insert; ignore conflicts in case the background poller raced us
+                    let _ = sqlx::query(
+                        "INSERT INTO posts (slug, rkey, time_us) VALUES ($1, $2, $3) ON CONFLICT (slug) DO NOTHING"
+                    )
+                    .bind(&slug)
+                    .bind(&rkey)
+                    .bind(&time_us)
+                    .execute(&state.pool)
+                    .await;
 
-            // Insert; ignore conflicts in case the background poller raced us
-            let _ = sqlx::query(
-                "INSERT INTO posts (slug, rkey, time_us) VALUES ($1, $2, $3) ON CONFLICT (slug) DO NOTHING"
-            )
-            .bind(slug)
-            .bind(&rkey)
-            .bind(&time_us)
-            .execute(&mut **db)
-            .await;
-
-            sqlx::query("SELECT * FROM posts WHERE slug = $1")
-                .bind(slug)
-                .fetch_one(&mut **db)
-                .await
-                .map(|row| {
-                    let meta = Meta {
-                        id: row.get(0),
-                        slug: row.get(1),
-                        rkey: row.get(2),
-                        time_us: row.get(3),
+                    let meta = models::Meta {
+                        id: 0, // Will be fetched from DB on next request
+                        slug,
+                        rkey,
+                        time_us,
                     };
-                    json![{
+                    Ok(Json(json!({
                         "status": "success",
                         "data": {"post": meta}
-                    }]
-                })
-                .ok()
+                    })))
+                }
+                None => Err(AppError::NotFound),
+            }
         }
     }
 }
 
-#[get("/slug")]
-async fn slug_root() -> Value {
-    json![{
-        "status": "fail",
-        "data": {"slug": "A slug is required: /slug/<slug>"}
-    }]
+enum AppError {
+    NotFound,
 }
 
-#[catch(404)]
-fn not_found(req: &Request) -> String {
-    format!("Sorry, '{}' is not a valid path.", req.uri())
+impl IntoResponse for AppError {
+    fn into_response(self) -> axum::response::Response {
+        match self {
+            AppError::NotFound => (
+                StatusCode::NOT_FOUND,
+                Json(json!({
+                    "status": "fail",
+                    "data": {"message": "Post not found"}
+                })),
+            )
+                .into_response(),
+        }
+    }
 }
 
-#[catch(404)]
-fn slug_not_found() -> Value {
-    json![{
-        "status": "fail",
-        "data": {"message": "Post not found"}
-    }]
+async fn not_found() -> (StatusCode, String) {
+    (
+        StatusCode::NOT_FOUND,
+        "Sorry, that path is not valid.".to_string(),
+    )
 }
 
-#[catch(503)]
-fn service_unavailable() -> Value {
-    json![{
-        "status": "error",
-        "data": {"message": "Unable to communicate with database"}
-    }]
-}
-#[launch]
-fn rocket() -> _ {
-    rocket::build()
-        .attach(Comments::init()) // init the database
-        .attach(PollerFairing)
-        .register("/", catchers![not_found])
-        .register("/slug", catchers![slug_not_found, service_unavailable])
-        .mount("/", routes![index, post_meta, slug_root])
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install CTRL+C signal handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
 }

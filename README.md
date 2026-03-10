@@ -59,11 +59,7 @@ if there's a fresh post, save it to the DB, then return.
 
 ## Configuration
 
-Configure in `Rocket.toml`:
-
-- `poster_handle`: Your Bluesky handle (e.g., "jack.is")
-- `target_emoji`: Emoji prefix to identify blog posts (e.g., "📝")
-- `blog_domain`: Your blog's domain to match URLs (e.g., "jack.is")
+Configuration can be done via environment variables or
 
 ## Local Postgres Runner
 

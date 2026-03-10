@@ -2,13 +2,7 @@
 rust = "1.92.0"
 
 [env]
-POSTGRES_CONTAINER = "at-comments-postgres"
-POSTGRES_DB = "at_comments"
-POSTGRES_USER = "at_comments"
-POSTGRES_PASSWORD = "at_comments"
-POSTGRES_PORT = "54329"
-ROCKET_DATABASES = '{bluesky_comments={url="postgres://at_comments:at_comments@localhost:54329/at_comments"}}'
-
+_.file = ".env"
 [tasks.db-up]
 description = "Start local Postgres container"
 run = '''

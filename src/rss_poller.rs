@@ -1,13 +1,39 @@
-use rocket::Config;
-use rocket_db_pools::sqlx::{self};
 use serde::Deserialize;
 use tokio::time::{sleep, Duration};
 
-#[derive(Deserialize, Debug)]
-struct PollerConfig {
-    poster_handle: String,
-    target_emoji: String,
-    blog_domain: String,
+thread_local! {
+    static POLLER_CONFIG: std::cell::RefCell<Option<PollerConfig>> = const { std::cell::RefCell::new(None) };
+}
+
+#[derive(Deserialize, Debug, Clone)]
+pub struct PollerConfig {
+    pub handle: String,
+    pub emoji: String,
+    pub domain: String,
+}
+
+impl PollerConfig {
+    /// Load poller config from environment variables
+    pub fn from_env() -> Result<Self, String> {
+        let cfg =
+            crate::settings::build_config().map_err(|e| format!("Failed to load config: {}", e))?;
+
+        let poster_handle = cfg
+            .get_string("poller.handle")
+            .map_err(|_| "ATC_POLLER_HANDLE not set".to_string())?;
+        let target_emoji = cfg
+            .get_string("poller.emoji")
+            .map_err(|_| "ATC_POLLER_EMOJI not set".to_string())?;
+        let blog_domain = cfg
+            .get_string("poller.domain")
+            .map_err(|_| "ATC_POLLER_DOMAIN not set".to_string())?;
+
+        Ok(PollerConfig {
+            handle: poster_handle,
+            emoji: target_emoji,
+            domain: blog_domain,
+        })
+    }
 }
 
 /// Fetch and parse RSS feed from Bluesky profile
@@ -72,9 +98,9 @@ fn find_blog_urls(description: &str, target_emoji: &str, blog_domain: &str) -> V
 
 /// Poll RSS feed and update database
 async fn poll_rss(pool: &sqlx::Pool<sqlx::Postgres>, config: &PollerConfig) -> Result<(), String> {
-    log::info!("[rss] Polling RSS feed for {}", config.poster_handle);
+    log::info!("Polling RSS feed for {}", config.handle);
 
-    let channel = fetch_rss(&config.poster_handle).await?;
+    let channel = fetch_rss(&config.handle).await?;
 
     let mut processed = 0;
 
@@ -88,7 +114,7 @@ async fn poll_rss(pool: &sqlx::Pool<sqlx::Postgres>, config: &PollerConfig) -> R
         let rkey = match extract_rkey(guid) {
             Some(r) => r,
             None => {
-                log::warn!("[rss] Failed to extract rkey from guid: {}", guid);
+                log::warn!("Failed to extract rkey from guid: {}", guid);
                 continue;
             }
         };
@@ -100,7 +126,7 @@ async fn poll_rss(pool: &sqlx::Pool<sqlx::Postgres>, config: &PollerConfig) -> R
         };
 
         // Check for target emoji and blog URLs
-        let urls = find_blog_urls(description, &config.target_emoji, &config.blog_domain);
+        let urls = find_blog_urls(description, &config.emoji, &config.domain);
 
         if urls.is_empty() {
             continue;
@@ -115,7 +141,7 @@ async fn poll_rss(pool: &sqlx::Pool<sqlx::Postgres>, config: &PollerConfig) -> R
 
         // Process each blog URL found
         for url in urls {
-            if let Some(slug) = extract_slug_from_url(&url, &config.blog_domain) {
+            if let Some(slug) = extract_slug_from_url(&url, &config.domain) {
                 match sqlx::query(
                     "INSERT INTO posts (slug, rkey, time_us) VALUES ($1, $2, $3) ON CONFLICT (slug) DO NOTHING"
                 )
@@ -127,37 +153,37 @@ async fn poll_rss(pool: &sqlx::Pool<sqlx::Postgres>, config: &PollerConfig) -> R
                 {
                     Ok(result) => {
                         if result.rows_affected() > 0 {
-                            log::info!("[rss] Inserted new post: slug={}, rkey={}", slug, rkey);
+                            log::info!("Inserted new post: slug={}, rkey={}", slug, rkey);
                             processed += 1;
                         }
                     }
                     Err(e) => {
-                        log::error!("[rss] Failed to insert post {}: {}", slug, e);
+                        log::error!("Failed to insert post {}: {}", slug, e);
                     }
                 }
             }
         }
     }
 
-    log::info!("[rss] Poll complete, processed {} new posts", processed);
+    log::info!("Poll complete, processed {} new posts", processed);
     Ok(())
 }
 
 /// Look up a specific slug in the RSS feed on demand.
 /// Returns `(rkey, time_us)` if the slug is found, `None` otherwise.
 pub async fn lookup_slug_in_rss(slug: &str) -> Option<(String, String)> {
-    let config = match Config::figment().extract::<PollerConfig>() {
+    let config = match PollerConfig::from_env() {
         Ok(c) => c,
         Err(e) => {
-            log::error!("[rss] Failed to load config: {}", e);
+            log::error!("Failed to load config: {}", e);
             return None;
         }
     };
 
-    let channel = match fetch_rss(&config.poster_handle).await {
+    let channel = match fetch_rss(&config.handle).await {
         Ok(c) => c,
         Err(e) => {
-            log::error!("[rss] Failed to fetch RSS for on-demand lookup: {}", e);
+            log::error!("Failed to fetch RSS for on-demand lookup: {}", e);
             return None;
         }
     };
@@ -178,17 +204,17 @@ pub async fn lookup_slug_in_rss(slug: &str) -> Option<(String, String)> {
             None => continue,
         };
 
-        let urls = find_blog_urls(description, &config.target_emoji, &config.blog_domain);
+        let urls = find_blog_urls(description, &config.emoji, &config.domain);
 
         for url in &urls {
-            if let Some(found_slug) = extract_slug_from_url(url, &config.blog_domain) {
+            if let Some(found_slug) = extract_slug_from_url(url, &config.domain) {
                 if found_slug == slug {
                     let time_us = item
                         .pub_date()
                         .and_then(|date_str| chrono::DateTime::parse_from_rfc2822(date_str).ok())
                         .map(|dt| dt.timestamp_micros().to_string())
                         .unwrap_or_else(|| chrono::Utc::now().timestamp_micros().to_string());
-                    log::info!("[rss] On-demand lookup found slug={} rkey={}", slug, rkey);
+                    log::info!("On-demand lookup found slug={} rkey={}", slug, rkey);
                     return Some((rkey, time_us));
                 }
             }
@@ -200,24 +226,24 @@ pub async fn lookup_slug_in_rss(slug: &str) -> Option<(String, String)> {
 
 /// Background task that polls RSS every 15 minutes
 pub async fn rss_polling_task(pool: sqlx::Pool<sqlx::Postgres>) {
-    let config = match Config::figment().extract::<PollerConfig>() {
+    let config = match PollerConfig::from_env() {
         Ok(c) => c,
         Err(e) => {
-            log::error!("[rss] Failed to load config: {}", e);
+            log::error!("Failed to load config: {}", e);
             return;
         }
     };
 
     log::info!(
-        "[rss] Starting RSS poller for {} (emoji: {}, domain: {})",
-        config.poster_handle,
-        config.target_emoji,
-        config.blog_domain
+        "Starting RSS poller for {} (emoji: {}, domain: {})",
+        config.handle,
+        config.emoji,
+        config.domain
     );
 
     // Do initial poll immediately
     if let Err(e) = poll_rss(&pool, &config).await {
-        log::error!("[rss] Initial poll failed: {}", e);
+        log::error!("Initial poll failed: {}", e);
     }
 
     // Poll every 15 minutes
@@ -227,7 +253,7 @@ pub async fn rss_polling_task(pool: sqlx::Pool<sqlx::Postgres>) {
         sleep(interval).await;
 
         if let Err(e) = poll_rss(&pool, &config).await {
-            log::error!("[rss] Poll failed: {}", e);
+            log::error!("Poll failed: {}", e);
         }
     }
 }

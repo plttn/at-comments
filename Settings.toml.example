@@ -1,0 +1,9 @@
+[app]
+address = "0.0.0.0"
+port = 8080
+[database]
+url = "postgresql://at_comments:at_comments@localhost:54329/at_comments"
+[poller]
+handle = "jack.is"
+emoji = "📝"
+domain = "jack.is"
