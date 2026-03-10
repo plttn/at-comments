@@ -57,26 +57,57 @@ fn index() -> &'static str {
 
 #[get("/slug/<slug>")]
 async fn post_meta(mut db: Connection<Comments>, slug: &str) -> Option<Value> {
-    sqlx::query("SELECT * FROM posts WHERE slug = $1")
+    let db_result = sqlx::query("SELECT * FROM posts WHERE slug = $1")
         .bind(slug)
         .fetch_one(&mut **db)
-        .await
-        .map(|row| {
+        .await;
+
+    match db_result {
+        Ok(row) => {
             let meta = Meta {
                 id: row.get(0),
                 slug: row.get(1),
                 rkey: row.get(2),
                 time_us: row.get(3),
             };
+            Some(json![{
+                "status": "success",
+                "data": {"post": meta}
+            }])
+        }
+        Err(_) => {
+            // Not in DB — check the live RSS feed
+            let (rkey, time_us) = rss_poller::lookup_slug_in_rss(slug).await?;
 
-            json![{
-                "status" : "success",
-                "data": {
-                    "post": meta
-                }
-            }]
-        })
-        .ok()
+            // Insert; ignore conflicts in case the background poller raced us
+            let _ = sqlx::query(
+                "INSERT INTO posts (slug, rkey, time_us) VALUES ($1, $2, $3) ON CONFLICT (slug) DO NOTHING"
+            )
+            .bind(slug)
+            .bind(&rkey)
+            .bind(&time_us)
+            .execute(&mut **db)
+            .await;
+
+            sqlx::query("SELECT * FROM posts WHERE slug = $1")
+                .bind(slug)
+                .fetch_one(&mut **db)
+                .await
+                .map(|row| {
+                    let meta = Meta {
+                        id: row.get(0),
+                        slug: row.get(1),
+                        rkey: row.get(2),
+                        time_us: row.get(3),
+                    };
+                    json![{
+                        "status": "success",
+                        "data": {"post": meta}
+                    }]
+                })
+                .ok()
+        }
+    }
 }
 
 #[get("/slug")]

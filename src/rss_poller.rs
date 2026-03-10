@@ -143,6 +143,61 @@ async fn poll_rss(pool: &sqlx::Pool<sqlx::Postgres>, config: &PollerConfig) -> R
     Ok(())
 }
 
+/// Look up a specific slug in the RSS feed on demand.
+/// Returns `(rkey, time_us)` if the slug is found, `None` otherwise.
+pub async fn lookup_slug_in_rss(slug: &str) -> Option<(String, String)> {
+    let config = match Config::figment().extract::<PollerConfig>() {
+        Ok(c) => c,
+        Err(e) => {
+            log::error!("[rss] Failed to load config: {}", e);
+            return None;
+        }
+    };
+
+    let channel = match fetch_rss(&config.poster_handle).await {
+        Ok(c) => c,
+        Err(e) => {
+            log::error!("[rss] Failed to fetch RSS for on-demand lookup: {}", e);
+            return None;
+        }
+    };
+
+    for item in channel.items() {
+        let guid = match item.guid() {
+            Some(g) => g.value(),
+            None => continue,
+        };
+
+        let rkey = match extract_rkey(guid) {
+            Some(r) => r,
+            None => continue,
+        };
+
+        let description = match item.description() {
+            Some(d) => d,
+            None => continue,
+        };
+
+        let urls = find_blog_urls(description, &config.target_emoji, &config.blog_domain);
+
+        for url in &urls {
+            if let Some(found_slug) = extract_slug_from_url(url, &config.blog_domain) {
+                if found_slug == slug {
+                    let time_us = item
+                        .pub_date()
+                        .and_then(|date_str| chrono::DateTime::parse_from_rfc2822(date_str).ok())
+                        .map(|dt| dt.timestamp_micros().to_string())
+                        .unwrap_or_else(|| chrono::Utc::now().timestamp_micros().to_string());
+                    log::info!("[rss] On-demand lookup found slug={} rkey={}", slug, rkey);
+                    return Some((rkey, time_us));
+                }
+            }
+        }
+    }
+
+    None
+}
+
 /// Background task that polls RSS every 15 minutes
 pub async fn rss_polling_task(pool: sqlx::Pool<sqlx::Postgres>) {
     let config = match Config::figment().extract::<PollerConfig>() {
