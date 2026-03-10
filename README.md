@@ -53,8 +53,9 @@ from the URL and the rkey from the post's AT-URI, then stores the mapping in a P
 The API endpoint `GET /slug/<slug>` returns the post metadata (rkey, time_us) which the client-side
 code uses to fetch the full post thread from Bluesky.
 
-For immediate indexing without waiting for the 15-minute polling interval, the blog's client-side
-code includes fallback logic to check the RSS feed directly if a post isn't found in the database.
+For "cache busting", whenever a request is made to a slug lookup, if it's not found
+in the database, it will instead poll the feed directly and check again to see
+if there's a fresh post, save it to the DB, then return.
 
 ## Configuration
 
