@@ -1,2 +1,127 @@
 [tools]
 rust = "1.92.0"
+
+[env]
+POSTGRES_CONTAINER = "at-comments-postgres"
+POSTGRES_DB = "at_comments"
+POSTGRES_USER = "at_comments"
+POSTGRES_PASSWORD = "at_comments"
+POSTGRES_PORT = "54329"
+ROCKET_DATABASES = '{bluesky_comments={url="postgres://at_comments:at_comments@localhost:54329/at_comments"}}'
+
+[tasks.db-up]
+description = "Start local Postgres container"
+run = '''
+set -euo pipefail
+
+if ! command -v docker >/dev/null 2>&1; then
+	echo "docker is required but not installed or not in PATH"
+	exit 1
+fi
+
+if docker ps -a --filter "name=^/${POSTGRES_CONTAINER}$" --quiet | grep -q .; then
+	if docker ps --filter "name=^/${POSTGRES_CONTAINER}$" --filter "status=running" --quiet | grep -q .; then
+		echo "Container '$POSTGRES_CONTAINER' is already running"
+	else
+		echo "Starting existing container '$POSTGRES_CONTAINER'"
+		docker start "$POSTGRES_CONTAINER" >/dev/null
+	fi
+else
+	echo "Creating container '$POSTGRES_CONTAINER' on localhost:$POSTGRES_PORT"
+	docker run -d \
+		--name "$POSTGRES_CONTAINER" \
+		-e POSTGRES_DB="$POSTGRES_DB" \
+		-e POSTGRES_USER="$POSTGRES_USER" \
+		-e POSTGRES_PASSWORD="$POSTGRES_PASSWORD" \
+		-p "$POSTGRES_PORT:5432" \
+		postgres:16-alpine >/dev/null
+fi
+
+echo "Waiting for Postgres to become ready..."
+for _ in $(seq 1 45); do
+	if docker exec "$POSTGRES_CONTAINER" pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; then
+		echo "Postgres is ready"
+		exit 0
+	fi
+	sleep 1
+done
+
+echo "Postgres did not become ready in time"
+exit 1
+'''
+
+[tasks.db-init]
+description = "Create posts table (no migrations)"
+depends = ["db-up"]
+run = '''
+set -euo pipefail
+
+docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<'SQL'
+CREATE TABLE IF NOT EXISTS posts (
+	id SERIAL PRIMARY KEY,
+	slug TEXT UNIQUE NOT NULL,
+	rkey TEXT NOT NULL,
+	time_us TEXT NOT NULL
+);
+SQL
+
+echo "Schema ready"
+'''
+
+[tasks.db-seed]
+description = "Seed sample post rows"
+depends = ["db-init"]
+run = '''
+set -euo pipefail
+
+docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<'SQL'
+INSERT INTO posts (slug, rkey, time_us) VALUES
+	('hello-world', '3lch7i6x4x22m', '1738411000000000'),
+	('rust-and-rockets', '3lch7i6x4x22n', '1738414600000000'),
+	('using-bluesky-comments', '3lch7i6x4x22o', '1738418200000000')
+ON CONFLICT (slug) DO UPDATE SET
+	rkey = EXCLUDED.rkey,
+	time_us = EXCLUDED.time_us;
+SQL
+
+echo "Seed data loaded"
+'''
+
+[tasks.db-setup]
+description = "Start local Postgres, create schema, and seed rows"
+depends = ["db-seed"]
+run = '''
+echo "Local Postgres is ready"
+echo "Run the app with: mise run dev"
+echo "Quick test: curl http://127.0.0.1:4321/slug/hello-world"
+'''
+
+[tasks.db-down]
+description = "Stop and remove local Postgres container"
+run = '''
+set -euo pipefail
+
+if docker ps -a --filter "name=^/${POSTGRES_CONTAINER}$" --quiet | grep -q .; then
+	docker rm -f "$POSTGRES_CONTAINER"
+	echo "Removed container '$POSTGRES_CONTAINER'"
+else
+	echo "Container '$POSTGRES_CONTAINER' does not exist"
+fi
+'''
+
+[tasks.db-connect]
+description = "Open psql shell in local Postgres container"
+depends = ["db-up"]
+run = '''
+set -euo pipefail
+
+if [ -t 0 ] && [ -t 1 ]; then
+	exec docker exec -it "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+else
+	exec docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+fi
+'''
+
+[tasks.dev]
+description = "Run at-comments with local mise environment"
+run = "cargo run"

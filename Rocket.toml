@@ -1,10 +1,12 @@
 [debug]
-poster_did = "did:plc:gaiatc34nb7yhkgoxrf44gpl"
+poster_handle = "jack.is"
 target_emoji = "📝"
+blog_domain = "jack.is"
 
 [release]
-poster_did = "did:plc:cwdkf4xxjpznceembuuspt3d"
+poster_handle = "jack.is"
 target_emoji = "📝"
+blog_domain = "jack.is"
 
 [default]
 port = 4321

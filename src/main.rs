@@ -2,7 +2,7 @@
 extern crate rocket;
 
 pub mod models;
-mod post_listener;
+mod rss_poller;
 
 use models::Meta;
 use rocket::fairing::{self, Fairing};
@@ -16,13 +16,13 @@ use rocket_db_pools::{sqlx, Connection, Database};
 #[database("bluesky_comments")]
 struct Comments(sqlx::PgPool);
 
-struct ListenerFairing;
+struct PollerFairing;
 
 #[rocket::async_trait]
-impl Fairing for ListenerFairing {
+impl Fairing for PollerFairing {
     fn info(&self) -> rocket::fairing::Info {
         rocket::fairing::Info {
-            name: "Jetstream listener",
+            name: "RSS Poller",
             kind: rocket::fairing::Kind::Ignite,
         }
     }
@@ -32,7 +32,7 @@ impl Fairing for ListenerFairing {
             Some(pool) => pool.0.clone(),
             None => return Err(rocket),
         };
-        rocket::tokio::task::spawn(post_listener::websocket_listener(pool));
+        rocket::tokio::task::spawn(rss_poller::rss_polling_task(pool));
         Ok(rocket)
     }
 }
@@ -111,7 +111,7 @@ fn service_unavailable() -> Value {
 fn rocket() -> _ {
     rocket::build()
         .attach(Comments::init()) // init the database
-        .attach(ListenerFairing)
+        .attach(PollerFairing)
         .register("/", catchers![not_found])
         .register("/slug", catchers![slug_not_found, service_unavailable])
         .mount("/", routes![index, post_meta, slug_root])

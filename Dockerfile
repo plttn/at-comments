@@ -1,4 +1,4 @@
-FROM docker.io/rust:1.84.0 AS build
+FROM docker.io/rust:latest AS build
 
 ## cargo package name: customize here or provide via --build-arg
 ARG pkg=at-comments
@@ -11,11 +11,11 @@ WORKDIR /build
 COPY . .
 
 RUN --mount=type=cache,target=/build/target \
-    --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/usr/local/cargo/git \
-    set -eux; \
-    cargo build --release; \
-    objcopy --compress-debug-sections target/release/$pkg ./main
+  --mount=type=cache,target=/usr/local/cargo/registry \
+  --mount=type=cache,target=/usr/local/cargo/git \
+  set -eux; \
+  cargo build --release; \
+  objcopy --compress-debug-sections target/release/$pkg ./main
 
 ################################################################################
 

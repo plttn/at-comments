@@ -14,7 +14,7 @@ const getPostAndThreadData = async (
   slug: string,
   setThread,
   setUri,
-  setError
+  setError,
 ) => {
   const agent = new Agent("https://public.api.bsky.app");
   const assembledUrl = "https://jack.is/posts/" + slug.toString();
@@ -41,13 +41,65 @@ const getPostAndThreadData = async (
 ```
 
 "oh no" was my reaction, so I decided to put together a little database project
-that uses the Bluesky jetstream and persists all the relevant post rkeys in a
-database, so that then my clientside code can just make a request to the API
-server.
+that polls my Bluesky RSS feed every 15 minutes and persists all the relevant post
+rkeys in a database, so that my clientside code can just make a request to the API server.
+
+## How It Works
+
+The service polls the Bluesky RSS feed at `https://bsky.app/profile/{handle}/rss` every 15 minutes.
+It looks for posts starting with 📝 that contain links to the configured blog domain, extracts the slug
+from the URL and the rkey from the post's AT-URI, then stores the mapping in a PostgreSQL database.
+
+The API endpoint `GET /slug/<slug>` returns the post metadata (rkey, time_us) which the client-side
+code uses to fetch the full post thread from Bluesky.
+
+For immediate indexing without waiting for the 15-minute polling interval, the blog's client-side
+code includes fallback logic to check the RSS feed directly if a post isn't found in the database.
+
+## Configuration
+
+Configure in `Rocket.toml`:
+
+- `poster_handle`: Your Bluesky handle (e.g., "jack.is")
+- `target_emoji`: Emoji prefix to identify blog posts (e.g., "📝")
+- `blog_domain`: Your blog's domain to match URLs (e.g., "jack.is")
+
+## Local Postgres Runner
+
+If you want to run the app locally without a DB sidecar setup, use:
+
+```bash
+mise run db-setup
+```
+
+This task:
+
+- Starts a Postgres container on `localhost:54329`
+- Creates the `posts` table directly (ignores migrations)
+- Seeds sample rows
+- Uses `ROCKET_DATABASES` from `mise.toml`
+
+Then start the app:
+
+```bash
+mise run dev
+```
+
+Quick test:
+
+```bash
+curl http://127.0.0.1:4321/slug/hello-world
+```
+
+To stop/remove the local Postgres container:
+
+```bash
+mise run db-down
+```
 
 ## Caveats
 
 This work so far makes a whole lot of assumptions. It only tracks a single user
-currently. You could probably add more fields and DID handling to allow for
-multiple separate Bluesky users to be tracked, but given that I'm probably the
-only one that will be using it, I'm not too worried about that limitation.
+currently. You could probably add more fields and handle multiple Bluesky users
+to be tracked, but given that I'm probably the only one that will be using it,
+I'm not too worried about that limitation.
