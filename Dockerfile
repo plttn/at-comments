@@ -19,7 +19,7 @@ RUN --mount=type=cache,target=/build/target \
 
 ################################################################################
 
-FROM docker.io/debian:bookworm-slim
+FROM docker.io/debian:trixie-slim
 
 RUN apt-get update -y && \
   apt-get install -y libpq5 ca-certificates openssl
@@ -34,8 +34,6 @@ COPY --from=build /build/Rocket.tom[l] ./static
 COPY --from=build /build/stati[c] ./static
 COPY --from=build /build/template[s] ./templates
 
-## ensure the container listens globally on port 8080
-ENV ROCKET_ADDRESS=0.0.0.0
-ENV ROCKET_PORT=8080
+
 
 CMD ["./main"]
