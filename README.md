@@ -59,40 +59,18 @@ if there's a fresh post, save it to the DB, then return.
 
 ## Configuration
 
-Configuration can be done via environment variables or
+Configuration can be done via environment variables with the `ATC_` prefix or a `Settings.toml` file.
 
-## Local Postgres Runner
+The available options are as follows:
 
-If you want to run the app locally without a DB sidecar setup, use:
-
-```bash
-mise run db-setup
-```
-
-This task:
-
-- Starts a Postgres container on `localhost:54329`
-- Creates the `posts` table directly (ignores migrations)
-- Seeds sample rows
-- Uses `ROCKET_DATABASES` from `mise.toml`
-
-Then start the app:
-
-```bash
-mise run dev
-```
-
-Quick test:
-
-```bash
-curl http://127.0.0.1:4321/slug/hello-world
-```
-
-To stop/remove the local Postgres container:
-
-```bash
-mise run db-down
-```
+| Variable                      | Description                                                                                                         |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| DATABASE_URL / database.url   | The Postgres connection string                                                                                      |
+| APP_ADDRESS / app.address     | Address to bind to                                                                                                  |
+| APP_PORT / app.port           | Port to bind to                                                                                                     |
+| POLLER_HANDLE / poller.handle | Bluesky username to check the RSS feed of                                                                           |
+| POLLER_EMOJI / poller.emoji   | The emoji to search for                                                                                             |
+| POLLER_DOMAIN / poller.domain | Scoping to ensure that only the correct post is found. If the post does not link to this domain, it will be skipped |
 
 ## Caveats
 
