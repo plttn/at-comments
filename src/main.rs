@@ -15,14 +15,10 @@ use sqlx::Row;
 use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
 
-// use crate::settings::Settings;
-
 #[derive(Clone)]
 struct AppState {
     pool: sqlx::PgPool,
 }
-
-// use config::Config;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
