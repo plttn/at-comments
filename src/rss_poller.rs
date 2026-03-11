@@ -142,15 +142,16 @@ async fn poll_rss(pool: &sqlx::Pool<sqlx::Postgres>, config: &PollerConfig) -> R
         // Process each blog URL found
         for url in urls {
             if let Some(slug) = extract_slug_from_url(&url, &config.domain) {
-                match sqlx::query(
+                let insert_result = sqlx::query(
                     "INSERT INTO posts (slug, rkey, time_us) VALUES ($1, $2, $3) ON CONFLICT (slug) DO NOTHING"
                 )
                 .bind(&slug)
                 .bind(&rkey)
                 .bind(&time_us)
                 .execute(pool)
-                .await
-                {
+                .await;
+
+                match insert_result {
                     Ok(result) => {
                         if result.rows_affected() > 0 {
                             log::info!("Inserted new post: slug={}, rkey={}", slug, rkey);
