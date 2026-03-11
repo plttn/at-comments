@@ -4,6 +4,6 @@ port = 8080
 [database]
 url = "postgresql://at_comments:at_comments@localhost:54329/at_comments"
 [poller]
-handle = "jack.is"
+handle = "jay.bsky.team"
 emoji = "📝"
-domain = "jack.is"
+domain = "bsky.app"
