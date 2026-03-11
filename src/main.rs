@@ -3,15 +3,16 @@ mod rss_poller;
 mod settings;
 
 use axum::{
+    Json, Router,
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
     routing::get,
-    Json, Router,
 };
-use serde_json::{json, Value};
-use sqlx::postgres::PgPoolOptions;
+use env_logger::{Builder, Target};
+use serde_json::{Value, json};
 use sqlx::Row;
+use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
 
 // use crate::settings::Settings;
@@ -25,7 +26,9 @@ struct AppState {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    env_logger::init();
+    let mut builder = Builder::from_default_env();
+    builder.target(Target::Stdout);
+    builder.init();
 
     let config = settings::build_config()?;
 
