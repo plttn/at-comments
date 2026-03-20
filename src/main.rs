@@ -3,16 +3,16 @@ mod rss_poller;
 mod settings;
 
 use axum::{
-    Json, Router,
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
     routing::get,
+    Json, Router,
 };
 use env_logger::{Builder, Target};
-use serde_json::{Value, json};
-use sqlx::Row;
+use serde_json::{json, Value};
 use sqlx::postgres::PgPoolOptions;
+use sqlx::Row;
 use std::net::SocketAddr;
 
 #[derive(Clone)]

@@ -1,5 +1,5 @@
 use serde::Deserialize;
-use tokio::time::{Duration, sleep};
+use tokio::time::{sleep, Duration};
 
 thread_local! {
     static POLLER_CONFIG: std::cell::RefCell<Option<PollerConfig>> = const { std::cell::RefCell::new(None) };
@@ -208,16 +208,17 @@ pub async fn lookup_slug_in_rss(slug: &str) -> Option<(String, String)> {
         let urls = find_blog_urls(description, &config.emoji, &config.domain);
 
         for url in &urls {
-            if let Some(found_slug) = extract_slug_from_url(url, &config.domain)
-                && found_slug == slug
-            {
-                let time_us = item
-                    .pub_date()
-                    .and_then(|date_str| chrono::DateTime::parse_from_rfc2822(date_str).ok())
-                    .map(|dt| dt.timestamp_micros().to_string())
-                    .unwrap_or_else(|| chrono::Utc::now().timestamp_micros().to_string());
-                log::info!("On-demand lookup found slug={} rkey={}", slug, rkey);
-                return Some((rkey, time_us));
+            match extract_slug_from_url(url, &config.domain) {
+                Some(found_slug) if found_slug == slug => {
+                    let time_us = item
+                        .pub_date()
+                        .and_then(|date_str| chrono::DateTime::parse_from_rfc2822(date_str).ok())
+                        .map(|dt| dt.timestamp_micros().to_string())
+                        .unwrap_or_else(|| chrono::Utc::now().timestamp_micros().to_string());
+                    log::info!("On-demand lookup found slug={} rkey={}", slug, rkey);
+                    return Some((rkey, time_us));
+                }
+                _ => {}
             }
         }
     }
