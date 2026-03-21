@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = Router::new()
         .route("/", get(index))
         .route("/slug", get(slug_root))
-        .route("/slug/:slug", get(post_meta))
+        .route("/slug/{slug}", get(post_meta))
         .fallback(not_found)
         .with_state(app_state);
 
