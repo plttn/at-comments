@@ -14,7 +14,7 @@ pub struct PollerConfig {
 
 impl PollerConfig {
     /// Load poller config from environment variables
-    pub fn from_env() -> Result<Self, String> {
+    pub fn from_config() -> Result<Self, String> {
         let cfg =
             crate::settings::build_config().map_err(|e| format!("Failed to load config: {}", e))?;
 
@@ -173,7 +173,7 @@ async fn poll_rss(pool: &sqlx::Pool<sqlx::Postgres>, config: &PollerConfig) -> R
 /// Look up a specific slug in the RSS feed on demand.
 /// Returns `(rkey, time_us)` if the slug is found, `None` otherwise.
 pub async fn lookup_slug_in_rss(slug: &str) -> Option<(String, String)> {
-    let config = match PollerConfig::from_env() {
+    let config = match PollerConfig::from_config() {
         Ok(c) => c,
         Err(e) => {
             log::error!("Failed to load config: {}", e);
@@ -228,7 +228,7 @@ pub async fn lookup_slug_in_rss(slug: &str) -> Option<(String, String)> {
 
 /// Background task that polls RSS every 15 minutes
 pub async fn rss_polling_task(pool: sqlx::Pool<sqlx::Postgres>) {
-    let config = match PollerConfig::from_env() {
+    let config = match PollerConfig::from_config() {
         Ok(c) => c,
         Err(e) => {
             log::error!("Failed to load config: {}", e);
