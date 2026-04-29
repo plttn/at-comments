@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use tokio::time::{sleep, Duration};
+use url::Url;
 
 thread_local! {
     static POLLER_CONFIG: std::cell::RefCell<Option<PollerConfig>> = const { std::cell::RefCell::new(None) };
@@ -13,7 +14,7 @@ pub struct PollerConfig {
 }
 
 impl PollerConfig {
-    /// Load poller config from environment variables
+    /// Load poller config from the application's config builder
     pub fn from_config() -> Result<Self, String> {
         let cfg =
             crate::settings::build_config().map_err(|e| format!("Failed to load config: {}", e))?;
@@ -58,22 +59,24 @@ fn extract_rkey(uri: &str) -> Option<String> {
     uri.split('/').next_back().map(|s| s.to_string())
 }
 
-/// Extract slug from blog URL
-fn extract_slug_from_url(url: &str, blog_domain: &str) -> Option<String> {
-    if !url.contains(blog_domain) {
+/// Extract slug from blog URL using `url::Url` for robust parsing
+fn extract_slug_from_url(url_str: &str, blog_domain: &str) -> Option<String> {
+    // Try parsing as-is, and fall back to adding https:// if no scheme is present.
+    let url = Url::parse(url_str)
+        .or_else(|_| Url::parse(&format!("https://{}", url_str)))
+        .ok()?;
+
+    // Ensure the host/domain matches. Allow subdomains by using ends_with.
+    let domain = url.domain()?;
+    if !domain.ends_with(blog_domain) {
         return None;
     }
 
-    // Remove query/fragment and normalize trailing slash URLs.
-    let without_query = url.split('?').next().unwrap_or(url);
-    let without_fragment = without_query.split('#').next().unwrap_or(without_query);
-    let normalized = without_fragment.trim_end_matches('/');
-
-    normalized
-        .split('/')
-        .next_back()
-        .filter(|segment| !segment.is_empty())
-        .map(|segment| segment.to_string())
+    // Return the last nonempty path segment (handles trailing slashes).
+    url.path_segments()?
+        .rev()
+        .find(|segment| !segment.is_empty())
+        .map(|s| s.to_string())
 }
 
 /// Check post text for target emoji and extract blog URLs
@@ -91,7 +94,7 @@ fn find_blog_urls(description: &str, target_emoji: &str, blog_domain: &str) -> V
                 !c.is_alphanumeric() && c != ':' && c != '/' && c != '.' && c != '-' && c != '_'
             })
         })
-        .filter(|s| s.starts_with("http"))
+        .filter(|s| s.starts_with("http") || s.contains("/"))
         .map(|s| s.to_string())
         .collect()
 }
@@ -105,7 +108,7 @@ async fn poll_rss(pool: &sqlx::Pool<sqlx::Postgres>, config: &PollerConfig) -> R
     let mut processed = 0;
 
     for item in channel.items() {
-        // Extract rkey from guid (contains at:// URI)
+        // Extract rkey from GUID (contains at:// URI)
         let guid = match item.guid() {
             Some(g) => g.value(),
             None => continue,
