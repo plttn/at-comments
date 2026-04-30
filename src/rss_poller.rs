@@ -1,5 +1,5 @@
 use crate::settings::PollerConfig;
-use tokio::time::{sleep, Duration};
+use tokio::time::Duration;
 use url::Url;
 
 /// A parsed post entry extracted from an RSS item.
@@ -33,18 +33,10 @@ fn extract_rkey(uri: &str) -> Option<String> {
     uri.split('/').next_back().map(|s| s.to_string())
 }
 
-/// Extract slug from blog URL using `url::Url` for robust parsing
-fn extract_slug_from_url(url_str: &str, blog_domain: &str) -> Option<String> {
-    // Try parsing as-is, and fall back to adding https:// if no scheme is present.
-    let url = Url::parse(url_str)
-        .or_else(|_| Url::parse(&format!("https://{}", url_str)))
-        .ok()?;
-
-    // Ensure the host/domain matches. Allow subdomains by using ends_with.
-    let domain = url.domain()?;
-    if !domain.ends_with(blog_domain) {
-        return None;
-    }
+/// Extract slug from a blog URL (assumes URL has already been validated by find_blog_url).
+/// Returns the last nonempty path segment.
+fn extract_slug_from_url(url_str: &str) -> Option<String> {
+    let url = Url::parse(url_str).ok()?;
 
     // Return the last nonempty path segment (handles trailing slashes).
     url.path_segments()?
@@ -53,24 +45,28 @@ fn extract_slug_from_url(url_str: &str, blog_domain: &str) -> Option<String> {
         .map(|s| s.to_string())
 }
 
-/// Check post text for target emoji and extract blog URLs
-fn find_blog_urls(description: &str, target_emoji: &str, blog_domain: &str) -> Vec<String> {
+/// Extract the blog URL from a post description.
+/// Expected format: "📝 Title text ... https://domain/slug"
+/// Returns the URL if it matches the blog domain, None otherwise.
+fn find_blog_url(description: &str, target_emoji: &str, blog_domain: &str) -> Option<String> {
     if !description.starts_with(target_emoji) {
-        return vec![];
+        return None;
     }
 
-    // Simple URL extraction - look for blog domain in text
-    description
-        .split_whitespace()
-        .filter(|word| word.contains(blog_domain))
-        .map(|s| {
-            s.trim_matches(|c: char| {
-                !c.is_alphanumeric() && c != ':' && c != '/' && c != '.' && c != '-' && c != '_'
-            })
-        })
-        .filter(|s| s.starts_with("http") || s.contains("/"))
-        .map(|s| s.to_string())
-        .collect()
+    // Get the last whitespace-separated token (expected to be the URL)
+    description.split_whitespace().last().and_then(|url| {
+        // Strip trailing punctuation
+        let url = url.trim_matches(|c: char| {
+            !c.is_alphanumeric() && c != ':' && c != '/' && c != '.' && c != '-' && c != '_'
+        });
+        // Validate it's an HTTP(S) URL for our domain
+        if (url.starts_with("http://") || url.starts_with("https://")) && url.contains(blog_domain)
+        {
+            Some(url.to_string())
+        } else {
+            None
+        }
+    })
 }
 
 /// Parse all matching post entries from an RSS channel.
@@ -97,10 +93,10 @@ fn parse_rss_items(channel: &rss::Channel, config: &PollerConfig) -> Vec<PostEnt
             None => continue,
         };
 
-        let urls = find_blog_urls(description, &config.emoji, &config.domain);
-        if urls.is_empty() {
-            continue;
-        }
+        let url = match find_blog_url(description, &config.emoji, &config.domain) {
+            Some(u) => u,
+            None => continue,
+        };
 
         let time_us = item
             .pub_date()
@@ -108,14 +104,12 @@ fn parse_rss_items(channel: &rss::Channel, config: &PollerConfig) -> Vec<PostEnt
             .map(|dt| dt.timestamp_micros())
             .unwrap_or_else(|| chrono::Utc::now().timestamp_micros());
 
-        for url in &urls {
-            if let Some(slug) = extract_slug_from_url(url, &config.domain) {
-                entries.push(PostEntry {
-                    slug,
-                    rkey: rkey.clone(),
-                    time_us,
-                });
-            }
+        if let Some(slug) = extract_slug_from_url(&url) {
+            entries.push(PostEntry {
+                slug,
+                rkey,
+                time_us,
+            });
         }
     }
 
@@ -201,16 +195,11 @@ pub async fn rss_polling_task(
         config.domain
     );
 
-    // Do initial poll immediately
-    if let Err(e) = poll_rss(&client, &pool, &config).await {
-        log::error!("Initial poll failed: {}", e);
-    }
-
-    // Poll every 15 minutes
-    let interval = Duration::from_secs(15 * 60);
+    let mut ticker = tokio::time::interval(Duration::from_secs(15 * 60));
+    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
     loop {
-        sleep(interval).await;
+        ticker.tick().await; // fires immediately on first iteration, then every 15 mins
 
         if let Err(e) = poll_rss(&client, &pool, &config).await {
             log::error!("Poll failed: {}", e);
