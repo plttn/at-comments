@@ -1,13 +1,13 @@
 # Bluesky Comments Indexer
 
-This is a very _very_ specific usecase of mine for my Bluesky comments page.
+This is a very specific use case of mine for my Bluesky comments page.
 
 ## Why?
 
 I use Bluesky as the comments section on my blog. I don't want to have to go and
 update the info on the post when [Echofeed](https://echofeed.app) sends the post
 to my Bluesky account. Recently, Bryan Newbold skeeted that you shouldn't use
-the full text search API for automation.
+the fulltext search API for automation.
 
 ```ts
 const getPostAndThreadData = async (
@@ -50,8 +50,8 @@ The service polls the Bluesky RSS feed at `https://bsky.app/profile/{handle}/rss
 It looks for posts starting with 📝 that contain links to the configured blog domain, extracts the slug
 from the URL and the rkey from the post's AT-URI, then stores the mapping in a PostgreSQL database.
 
-The API endpoint `GET /slug/<slug>` returns the post metadata (rkey, time_us) which the client-side
-code uses to fetch the full post thread from Bluesky.
+The API endpoint `GET /slug/<slug>` returns the post metadata (rkey, time_us) 
+which the client-side code uses to fetch the full post thread from Bluesky.
 
 For "cache busting", whenever a request is made to a slug lookup, if it's not found
 in the database, it will instead poll the feed directly and check again to see
