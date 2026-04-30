@@ -4,7 +4,10 @@ mod settings;
 
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{
+        header::{self},
+        HeaderMap, StatusCode,
+    },
     response::IntoResponse,
     routing::get,
     Json, Router,
@@ -31,7 +34,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create database pool
     let pool = PgPoolOptions::new()
         .max_connections(5)
-        .connect(&config.get_string("database.url")?)
+        .connect(&config.get::<String>("database.url")?)
         .await?;
 
     log::info!("Connected to database");
@@ -53,8 +56,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_state(app_state);
 
     // Bind and serve
-    let address = config.get_string("app.address")?;
-    let port = config.get_int("app.port")? as u16;
+    let address = config.get::<String>("app.address")?;
+    let port = config.get::<u16>("app.port")?;
     let addr = format!("{}:{}", address, port).parse::<SocketAddr>()?;
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     log::info!("Server listening on {}", addr);
@@ -147,21 +150,36 @@ enum AppError {
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         match self {
-            AppError::NotFound => (
-                StatusCode::NOT_FOUND,
-                Json(json!({
-                    "status": "fail",
-                    "data": {"message": "Post not found"}
-                })),
-            )
-                .into_response(),
+            AppError::NotFound => {
+                let mut headers = HeaderMap::new();
+                headers.insert(
+                    header::CACHE_CONTROL,
+                    header::HeaderValue::from_static("no-store"),
+                );
+                // Return (StatusCode, HeaderMap, Body) so the header is sent.
+                (
+                    StatusCode::NOT_FOUND,
+                    headers,
+                    Json(json!({
+                        "status": "fail",
+                        "data": {"message": "Post not found"}
+                    })),
+                )
+                    .into_response()
+            }
         }
     }
 }
 
-async fn not_found() -> (StatusCode, String) {
+async fn not_found() -> impl IntoResponse {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        header::CACHE_CONTROL,
+        header::HeaderValue::from_static("no-store"),
+    );
     (
         StatusCode::NOT_FOUND,
+        headers,
         "Sorry, that path is not valid.".to_string(),
     )
 }

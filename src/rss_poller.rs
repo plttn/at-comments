@@ -20,13 +20,13 @@ impl PollerConfig {
             crate::settings::build_config().map_err(|e| format!("Failed to load config: {}", e))?;
 
         let poster_handle = cfg
-            .get_string("poller.handle")
+            .get::<String>("poller.handle")
             .map_err(|_| "ATC_POLLER_HANDLE not set".to_string())?;
         let target_emoji = cfg
-            .get_string("poller.emoji")
+            .get::<String>("poller.emoji")
             .map_err(|_| "ATC_POLLER_EMOJI not set".to_string())?;
         let blog_domain = cfg
-            .get_string("poller.domain")
+            .get::<String>("poller.domain")
             .map_err(|_| "ATC_POLLER_DOMAIN not set".to_string())?;
 
         Ok(PollerConfig {
