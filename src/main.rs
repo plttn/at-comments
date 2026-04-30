@@ -17,10 +17,13 @@ use serde_json::{json, Value};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::Row;
 use std::net::SocketAddr;
+use std::time::Duration;
 
 #[derive(Clone)]
 struct AppState {
     pool: sqlx::PgPool,
+    client: reqwest::Client,
+    poller_config: settings::PollerConfig,
 }
 
 #[tokio::main]
@@ -34,17 +37,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create database pool
     let pool = PgPoolOptions::new()
         .max_connections(5)
-        .connect(&config.get::<String>("database.url")?)
+        .connect(&config.database.url)
         .await?;
 
     log::info!("Connected to database");
 
-    let app_state = AppState { pool: pool.clone() };
+    sqlx::migrate!().run(&pool).await?;
+    log::info!("Database migrations applied");
+
+    // Create shared HTTP client with a request timeout
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()?;
+
+    let app_state = AppState {
+        pool: pool.clone(),
+        client: client.clone(),
+        poller_config: config.poller.clone(),
+    };
 
     // Spawn background RSS poller task
     let poller_pool = pool.clone();
+    let poller_config = config.poller.clone();
     tokio::spawn(async move {
-        rss_poller::rss_polling_task(poller_pool).await;
+        rss_poller::rss_polling_task(client, poller_pool, poller_config).await;
     });
 
     // Build router
@@ -56,9 +72,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_state(app_state);
 
     // Bind and serve
-    let address = config.get::<String>("app.address")?;
-    let port = config.get::<u16>("app.port")?;
-    let addr = format!("{}:{}", address, port).parse::<SocketAddr>()?;
+    let addr = format!("{}:{}", config.app.address, config.app.port).parse::<SocketAddr>()?;
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     log::info!("Server listening on {}", addr);
 
@@ -83,18 +97,21 @@ async fn index() -> &'static str {
     "##
 }
 
-async fn slug_root() -> Json<Value> {
-    Json(json!({
-        "status": "fail",
-        "data": {"slug": "A slug is required: /slug/<slug>"}
-    }))
+async fn slug_root() -> impl IntoResponse {
+    (
+        StatusCode::BAD_REQUEST,
+        Json(json!({
+            "status": "fail",
+            "data": {"slug": "A slug is required: /slug/<slug>"}
+        })),
+    )
 }
 
 async fn post_meta(
     State(state): State<AppState>,
     Path(slug): Path<String>,
 ) -> Result<Json<Value>, AppError> {
-    let result = sqlx::query("SELECT id, slug, rkey, time_us FROM posts WHERE slug = $1")
+    let result = sqlx::query("SELECT slug, rkey, time_us FROM posts WHERE slug = $1")
         .bind(&slug)
         .fetch_one(&state.pool)
         .await;
@@ -102,19 +119,18 @@ async fn post_meta(
     match result {
         Ok(row) => {
             let meta = models::Meta {
-                id: row.get(0),
-                slug: row.get(1),
-                rkey: row.get(2),
-                time_us: row.get(3),
+                slug: row.get(0),
+                rkey: row.get(1),
+                time_us: row.get(2),
             };
             Ok(Json(json!({
                 "status": "success",
                 "data": {"post": meta}
             })))
         }
-        Err(_) => {
+        Err(sqlx::Error::RowNotFound) => {
             // Not in DB — check the live RSS feed
-            match rss_poller::lookup_slug_in_rss(&slug).await {
+            match rss_poller::lookup_slug_in_rss(&state.client, &slug, &state.poller_config).await {
                 Some((rkey, time_us)) => {
                     // Insert; ignore conflicts in case the background poller raced us
                     let _ = sqlx::query(
@@ -122,29 +138,28 @@ async fn post_meta(
                     )
                     .bind(&slug)
                     .bind(&rkey)
-                    .bind(&time_us)
+                    .bind(time_us)
                     .execute(&state.pool)
                     .await;
 
-                    let meta = models::Meta {
-                        id: 0, // Will be fetched from DB on next request
-                        slug,
-                        rkey,
-                        time_us,
-                    };
                     Ok(Json(json!({
                         "status": "success",
-                        "data": {"post": meta}
+                        "data": {"post": models::Meta { slug, rkey, time_us }}
                     })))
                 }
                 None => Err(AppError::NotFound),
             }
+        }
+        Err(e) => {
+            log::error!("Database error looking up slug '{}': {}", slug, e);
+            Err(AppError::DatabaseError)
         }
     }
 }
 
 enum AppError {
     NotFound,
+    DatabaseError,
 }
 
 impl IntoResponse for AppError {
@@ -156,7 +171,6 @@ impl IntoResponse for AppError {
                     header::CACHE_CONTROL,
                     header::HeaderValue::from_static("no-store"),
                 );
-                // Return (StatusCode, HeaderMap, Body) so the header is sent.
                 (
                     StatusCode::NOT_FOUND,
                     headers,
@@ -167,6 +181,14 @@ impl IntoResponse for AppError {
                 )
                     .into_response()
             }
+            AppError::DatabaseError => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "status": "error",
+                    "message": "An internal error occurred"
+                })),
+            )
+                .into_response(),
         }
     }
 }

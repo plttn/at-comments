@@ -1,5 +1,6 @@
 [tools]
 rust = "1.94.0"
+"cargo:sqlx-cli" = "0.8"
 
 [env]
 _.file = ".env"
@@ -45,21 +46,14 @@ exit 1
 '''
 
 [tasks.db-init]
-description = "Create posts table (no migrations)"
+description = "Apply database migrations via sqlx-cli"
 depends = ["db-up"]
 run = '''
 set -euo pipefail
-
-docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<'SQL'
-CREATE TABLE IF NOT EXISTS posts (
-	id SERIAL PRIMARY KEY,
-	slug TEXT UNIQUE NOT NULL,
-	rkey TEXT NOT NULL,
-	time_us TEXT NOT NULL
-);
-SQL
-
-echo "Schema ready"
+# sqlx-cli only accepts postgres://, not postgresql://
+DB_URL=$(echo "$ATC_DATABASE_URL" | sed 's|^postgresql://|postgres://|')
+sqlx migrate run --database-url "$DB_URL"
+echo "Migrations applied"
 '''
 
 [tasks.db-seed]
@@ -70,9 +64,9 @@ set -euo pipefail
 
 docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<'SQL'
 INSERT INTO posts (slug, rkey, time_us) VALUES
-	('hello-world', '3lch7i6x4x22m', '1738411000000000'),
-	('rust-and-rockets', '3lch7i6x4x22n', '1738414600000000'),
-	('using-bluesky-comments', '3lch7i6x4x22o', '1738418200000000')
+	('hello-world', '3lch7i6x4x22m', 1738411000000000),
+	('rust-and-rockets', '3lch7i6x4x22n', 1738414600000000),
+	('using-bluesky-comments', '3lch7i6x4x22o', 1738418200000000)
 ON CONFLICT (slug) DO UPDATE SET
 	rkey = EXCLUDED.rkey,
 	time_us = EXCLUDED.time_us;
@@ -87,7 +81,7 @@ depends = ["db-seed"]
 run = '''
 echo "Local Postgres is ready"
 echo "Run the app with: mise run dev"
-echo "Quick test: curl http://127.0.0.1:4321/slug/hello-world"
+echo "Quick test: curl http://127.0.0.1:${ATC_APP_PORT}/slug/hello-world"
 '''
 
 [tasks.db-down]
