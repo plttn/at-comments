@@ -111,7 +111,7 @@ async fn post_meta(
     State(state): State<AppState>,
     Path(slug): Path<String>,
 ) -> Result<Json<Value>, AppError> {
-    let result = sqlx::query("SELECT slug, rkey, time_us FROM posts WHERE slug = $1")
+    let result = sqlx::query("SELECT slug, rkey FROM posts WHERE slug = $1")
         .bind(&slug)
         .fetch_one(&state.pool)
         .await;
@@ -121,7 +121,6 @@ async fn post_meta(
             let meta = models::Meta {
                 slug: row.get(0),
                 rkey: row.get(1),
-                time_us: row.get(2),
             };
             Ok(Json(json!({
                 "status": "success",
@@ -144,7 +143,7 @@ async fn post_meta(
 
                     Ok(Json(json!({
                         "status": "success",
-                        "data": {"post": models::Meta { slug, rkey, time_us }}
+                        "data": {"post": models::Meta { slug, rkey }}
                     })))
                 }
                 None => Err(AppError::NotFound),
