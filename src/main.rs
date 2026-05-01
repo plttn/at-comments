@@ -180,14 +180,22 @@ impl IntoResponse for AppError {
                 )
                     .into_response()
             }
-            AppError::DatabaseError => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({
-                    "status": "error",
-                    "message": "An internal error occurred"
-                })),
-            )
-                .into_response(),
+            AppError::DatabaseError => {
+                let mut headers = HeaderMap::new();
+                headers.insert(
+                    header::CACHE_CONTROL,
+                    header::HeaderValue::from_static("no-store"),
+                );
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    headers,
+                    Json(json!({
+                        "status": "error",
+                        "message": "An internal error occurred"
+                    })),
+                )
+                    .into_response()
+            }
         }
     }
 }
