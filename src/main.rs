@@ -6,7 +6,7 @@ use axum::{
     extract::{Path, State},
     http::{
         header::{self},
-        HeaderMap, StatusCode,
+        HeaderMap, HeaderValue, StatusCode,
     },
     response::IntoResponse,
     routing::get,
@@ -18,6 +18,7 @@ use sqlx::postgres::PgPoolOptions;
 use sqlx::Row;
 use std::net::SocketAddr;
 use std::time::Duration;
+use tower_http::set_header::SetResponseHeaderLayer;
 
 #[derive(Clone)]
 struct AppState {
@@ -69,7 +70,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/slug", get(slug_root))
         .route("/slug/{slug}", get(post_meta))
         .fallback(not_found)
-        .with_state(app_state);
+        .with_state(app_state)
+        .layer(SetResponseHeaderLayer::overriding(
+            header::SERVER,
+            HeaderValue::from_static("at-comments/1.0"),
+        ));
 
     // Bind and serve
     let addr = format!("{}:{}", config.app.address, config.app.port).parse::<SocketAddr>()?;
